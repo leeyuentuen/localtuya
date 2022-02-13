@@ -3,11 +3,18 @@ import logging
 from functools import partial
 
 import voluptuous as vol
-from homeassistant.components.sensor import DEVICE_CLASSES, DOMAIN
+from homeassistant.components.sensor import (
+    DEVICE_CLASSES,
+    DOMAIN,
+    STATE_CLASS_MEASUREMENT,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.const import (
     CONF_DEVICE_CLASS,
     CONF_UNIT_OF_MEASUREMENT,
     STATE_UNKNOWN,
+
 )
 
 from .common import LocalTuyaEntity, async_setup_entry
@@ -29,7 +36,7 @@ def flow_schema(dps):
     }
 
 
-class LocaltuyaSensor(LocalTuyaEntity):
+class LocaltuyaSensor(LocalTuyaEntity, SensorEntity):
     """Representation of a Tuya sensor."""
 
     def __init__(
@@ -42,11 +49,17 @@ class LocaltuyaSensor(LocalTuyaEntity):
         """Initialize the Tuya sensor."""
         super().__init__(device, config_entry, sensorid, _LOGGER, **kwargs)
         self._state = STATE_UNKNOWN
+        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def state(self):
         """Return sensor state."""
         return self._state
+
+    @property
+    def state_class(self):
+        """Return longterm statistics."""
+        return STATE_CLASS_MEASUREMENT
 
     @property
     def device_class(self):
