@@ -63,6 +63,7 @@ SET = "set"
 STATUS = "status"
 HEARTBEAT = "heartbeat"
 UPDATEDPS = "updatedps"  # Request refresh of DPS
+REFRESH = "refresh"
 
 PROTOCOL_VERSION_BYTES_31 = b"3.1"
 PROTOCOL_VERSION_BYTES_33 = b"3.3"
@@ -104,6 +105,7 @@ GATEWAY_PAYLOAD_DICT = {
         STATUS: {"hexByte": COMMAND_DP_QUERY, "command": {"cid": ""}},
         SET: {"hexByte": COMMAND_SET, "command": {"cid": "", "t": ""}},
         HEARTBEAT: {"hexByte": COMMAND_HEARTBEAT, "command": {}},
+        REFRESH: {"hexByte": COMMAND_UPDATE_DPS, "command": {"gwId": "", "devId": "", "uid": "", "t": "", "dpId": ""}},
     },
     # TYPE_0D should never be used with gateways
 }
@@ -119,8 +121,11 @@ PAYLOAD_DICT = {
         SET: {"hexByte": COMMAND_SET, "command": {"devId": "", "uid": "", "t": ""}},
         HEARTBEAT: {"hexByte": COMMAND_HEARTBEAT, "command": {}},
         UPDATEDPS: {"hexByte": COMMAND_UPDATE_DPS, "command": {"dpId": [18, 19, 20]}},
+        REFRESH: {"hexByte": COMMAND_UPDATE_DPS, "command": {"gwId": "", "devId": "", "uid": "", "t": "", "dpId": ""}},
     },
 }
+
+REFRESH_IDS = [4, 5, 6, 18, 19, 20]
 
 
 class TuyaLoggingAdapter(logging.LoggerAdapter):
@@ -231,9 +236,10 @@ class AESCipher:
 class MessageDispatcher(ContextualLogger):
     """Buffer and dispatcher for Tuya messages."""
 
-    # Heartbeats always respond with sequence number 0, so they can't be waited for like
-    # other messages. This is a hack to allow waiting for heartbeats.
+    # Heartbeats and refreshes always respond with sequence number 0, so they can't be waited for like
+    # other messages. This is a hack to allow waiting for them.
     HEARTBEAT_SEQNO = -100
+    REFRESH_SEQNO = -101
 
     def __init__(self, dev_id, listener):
         """Initialize a new MessageBuffer."""
@@ -317,10 +323,24 @@ class MessageDispatcher(ContextualLogger):
                 self.listeners[self.HEARTBEAT_SEQNO] = msg
                 sem.release()
         elif msg.cmd == COMMAND_UPDATE_DPS:
-            self.debug("Got normal updatedps response")
+            self.debug("Got normal refresh response")
+            if self.REFRESH_SEQNO in self.listeners:
+                sem = self.listeners[self.REFRESH_SEQNO]
+                self.listeners[self.REFRESH_SEQNO] = msg
+                if isinstance(sem, asyncio.Semaphore):
+                    sem.release()
         elif msg.cmd == COMMAND_STATUS:
-            self.debug("Got status update")
-            self.listener(msg)
+            # If we have an open refresh call then this is for it.
+            # Some devices send 0x12 and 0x08 in response to a refresh.
+            # Empty DPS responses here are always for refresh but hey we haven't decoded yet to know
+            if self.REFRESH_SEQNO in self.listeners and isinstance(self.listeners[self.REFRESH_SEQNO], asyncio.Semaphore):
+                self.debug("Got status type refresh response")
+                sem = self.listeners[self.REFRESH_SEQNO]
+                self.listeners[self.REFRESH_SEQNO] = msg
+                sem.release()
+            else:
+                self.debug("Got status update")
+                self.listener(msg)
         else:
             self.debug(
                 "Got message type %d for unknown listener %d: %s",
@@ -400,7 +420,10 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
     def connection_made(self, transport):
         """Did connect to the device."""
+        self.transport = transport
+        self.on_connected.set_result(True)
 
+    def start_heartbeat(self):
         async def heartbeat_loop():
             """Continuously send heart beat updates."""
             self.debug("Started heartbeat loop")
@@ -422,9 +445,9 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             self.transport = None
             transport.close()
 
-        self.transport = transport
-        self.on_connected.set_result(True)
-        self.heartbeater = self.loop.create_task(heartbeat_loop())
+            self.transport = transport
+            self.on_connected.set_result(True)
+            self.heartbeater = self.loop.create_task(heartbeat_loop())
 
     def data_received(self, data):
         """Received data from device."""
@@ -468,12 +491,13 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         payload = self._generate_payload(command, dps, cid)
         dev_type = self.dev_type
 
-        # Wait for special sequence number if heartbeat
-        seqno = (
-            MessageDispatcher.HEARTBEAT_SEQNO
-            if command == HEARTBEAT
-            else (self.seqno - 1)
-        )
+        # Wait for special sequence number if heartbeat or refresh
+        seqno = (self.seqno - 1)
+
+        if command == HEARTBEAT:
+            seqno = MessageDispatcher.HEARTBEAT_SEQNO
+        elif command == REFRESH:
+            seqno = MessageDispatcher.REFRESH_SEQNO
 
         self.transport.write(payload)
         msg = await self.dispatcher.wait_for(seqno)
@@ -517,6 +541,15 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
     async def heartbeat(self):
         """Send a heartbeat message."""
         return await self.exchange(HEARTBEAT)
+    
+    async def refresh(self):
+        """Send a refresh message (3.3 only)."""
+        if self.version == 3.3:
+            self.dev_type = "type_0a"
+            self.debug("refresh switching to dev_type %s", self.dev_type)
+            return await self.exchange(REFRESH)
+        else:
+            return True
 
     async def update_dps(self, dps=None):
         """
@@ -720,6 +753,8 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             json_data["cid"] = cid  # for Zigbee gateways, cid specifies the sub-device
         if "t" in json_data:
             json_data["t"] = str(int(time.time()))
+        if "dpId" in json_data:
+            json_data["dpId"] = REFRESH_IDS
 
         if data is not None:
             if "dpId" in json_data:
