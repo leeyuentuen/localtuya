@@ -754,7 +754,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         if "t" in json_data:
             json_data["t"] = str(int(time.time()))
         if "dpId" in json_data:
-            json_data["dpId"] = 
+            json_data["dpId"] = REFRESH_IDS
 
         if data is not None:
             if "dpId" in json_data:
