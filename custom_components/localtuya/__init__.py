@@ -243,7 +243,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     client_id = entry.data[CONF_CLIENT_ID]
     secret = entry.data[CONF_CLIENT_SECRET]
     user_id = entry.data[CONF_USER_ID]
-    tuya_api = TuyaCloudApi(hass, region, client_id, secret, user_id)
+
+    # https://developer.tuya.com/en/docs/iot/api-request?id=Ka4a8uuo1j4t4#title-1-Endpoints
+    subregion = None
+
+    if (region == "west-eu"):
+        region = "eu"
+        subregion = "weaz"
+    elif (region == "east-us"):
+        region = "us"
+        subregion = "ueaz"
+
+    tuya_api = TuyaCloudApi(hass, region, client_id, secret, user_id, subregion)
     no_cloud = True
     if CONF_NO_CLOUD in entry.data:
         no_cloud = entry.data.get(CONF_NO_CLOUD)

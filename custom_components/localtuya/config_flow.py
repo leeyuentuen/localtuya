@@ -71,7 +71,7 @@ CONFIGURE_SCHEMA = vol.Schema(
 
 CLOUD_SETUP_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_REGION, default="eu"): vol.In(["eu", "us", "cn", "in"]),
+        vol.Required(CONF_REGION, default="eu"): vol.In(["eu", "west-eu", "us", "east-us", "cn", "in"]),
         vol.Optional(CONF_CLIENT_ID): cv.string,
         vol.Optional(CONF_CLIENT_SECRET): cv.string,
         vol.Optional(CONF_USER_ID): cv.string,
@@ -256,12 +256,25 @@ async def validate_input(hass: core.HomeAssistant, data):
 
 async def attempt_cloud_connection(hass, user_input):
     """Create device."""
+
+    # https://developer.tuya.com/en/docs/iot/api-request?id=Ka4a8uuo1j4t4#title-1-Endpoints
+    subregion = None
+    region = user_input.get(CONF_REGION)
+
+    if (region == "west-eu"):
+        region = "eu"
+        subregion = "weaz"
+    elif (region == "east-us"):
+        region = "us"
+        subregion = "ueaz"
+
     cloud_api = TuyaCloudApi(
         hass,
-        user_input.get(CONF_REGION),
+        region,
         user_input.get(CONF_CLIENT_ID),
         user_input.get(CONF_CLIENT_SECRET),
         user_input.get(CONF_USER_ID),
+        subregion
     )
 
     res = await cloud_api.async_get_access_token()
