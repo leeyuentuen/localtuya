@@ -40,6 +40,7 @@ from .const import (
     CONF_PROTOCOL_VERSION,
     CONF_SETUP_CLOUD,
     CONF_USER_ID,
+    CONF_GATEWAY_DEVICE_ID,
     DATA_CLOUD,
     DATA_DISCOVERY,
     DOMAIN,
@@ -87,6 +88,8 @@ CONFIGURE_DEVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_DEVICE_ID): str,
         vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
+        vol.Optional(CONF_GATEWAY_DEVICE_ID): str,
+        vol.Optional(CONF_CLIENT_ID): str,
         vol.Optional(CONF_SCAN_INTERVAL): int,
     }
 )
@@ -118,12 +121,7 @@ def devices_schema(discovered_devices, cloud_devices_list, add_custom_device=Tru
 
     if add_custom_device:
         devices.update({CUSTOM_DEVICE: CUSTOM_DEVICE})
-    # devices.update(
-    #     {
-    #         ent.data[CONF_DEVICE_ID]: ent.data[CONF_FRIENDLY_NAME]
-    #         for ent in entries
-    #     }
-    # )
+
     return vol.Schema({vol.Required(SELECTED_DEVICE): vol.In(devices)})
 
 
@@ -227,17 +225,18 @@ def config_schema():
 
 async def validate_input(hass: core.HomeAssistant, data):
     """Validate the user input allows us to connect."""
-    detected_dps = {}
     interface = None
     try:
         interface = await pytuya.connect(
             data[CONF_HOST],
-            data[CONF_DEVICE_ID],
+            data.get(CONF_GATEWAY_DEVICE_ID, data[CONF_DEVICE_ID]),
             data[CONF_LOCAL_KEY],
             float(data[CONF_PROTOCOL_VERSION]),
+            is_gateway=True if data.get(CONF_CLIENT_ID) else False,
         )
-
-        detected_dps = await interface.detect_available_dps()
+        if data.get(CONF_CLIENT_ID):
+            interface.add_sub_device(data[CONF_CLIENT_ID])
+        detected_dps = await interface.detect_available_dps(cid=data.get(CONF_CLIENT_ID))
     except (ConnectionRefusedError, ConnectionResetError) as ex:
         raise CannotConnect from ex
     except ValueError as ex:
@@ -465,11 +464,29 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
                 _LOGGER.exception("discovery failed")
                 errors["base"] = "discovery_failed"
 
-        devices = {
-            dev_id: dev["ip"]
-            for dev_id, dev in self.discovered_devices.items()
-            if dev["gwId"] not in self.config_entry.data[CONF_DEVICES]
-        }
+        # device category reference
+        # https://developer.tuya.com/en/docs/cloud/303a03de7e?id=Kb2us379ab2mi
+        gateways = {}
+        for dev_id, dev in data[DATA_CLOUD].device_list.items():
+            if dev['category'] == 'wg2':
+                # identify gateways by local key since sub-devices under
+                # this gateway use the gateway local key
+                gateways[dev['local_key']] = dev_id
+
+        devices = {}
+        for dev_id, dev in data[DATA_CLOUD].device_list.items():
+            if dev_id not in self.config_entry.data[CONF_DEVICES]:
+                if dev_id in self.discovered_devices:
+                    devices[dev_id] = self.discovered_devices[dev_id]["ip"]
+                elif dev['local_key'] in gateways:
+                    gateway_id = gateways[dev['local_key']]
+                    # this device uses the gateway api for communication
+                    self.discovered_devices[dev_id] = self.discovered_devices[gateway_id]
+                    self.discovered_devices[dev_id][CONF_GATEWAY_DEVICE_ID] = self.discovered_devices[dev_id]['gwId']
+                    self.discovered_devices[dev_id]['gwId'] = dev_id
+                    # this should be the mac address of the sub device
+                    self.discovered_devices[dev_id][CONF_CLIENT_ID] = dev['node_id']
+                    devices[dev_id] = self.discovered_devices[dev_id]["ip"]
 
         return self.async_show_form(
             step_id="add_device",
@@ -565,12 +582,17 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
             defaults[CONF_DEVICE_ID] = ""
             defaults[CONF_LOCAL_KEY] = ""
             defaults[CONF_FRIENDLY_NAME] = ""
+            defaults[CONF_GATEWAY_DEVICE_ID] = ""
+            defaults[CONF_CLIENT_ID] = ""
+
             if dev_id is not None:
                 # Insert default values from discovery and cloud if present
                 device = self.discovered_devices[dev_id]
                 defaults[CONF_HOST] = device.get("ip")
                 defaults[CONF_DEVICE_ID] = device.get("gwId")
                 defaults[CONF_PROTOCOL_VERSION] = device.get("version")
+                defaults[CONF_GATEWAY_DEVICE_ID] = device.get(CONF_GATEWAY_DEVICE_ID)
+                defaults[CONF_CLIENT_ID] = device.get(CONF_CLIENT_ID)
                 cloud_devs = self.hass.data[DOMAIN][DATA_CLOUD].device_list
                 if dev_id in cloud_devs:
                     defaults[CONF_LOCAL_KEY] = cloud_devs[dev_id].get(CONF_LOCAL_KEY)

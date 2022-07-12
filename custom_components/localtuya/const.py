@@ -40,6 +40,7 @@ CONF_ADD_DEVICE = "add_device"
 CONF_EDIT_DEVICE = "edit_device"
 CONF_SETUP_CLOUD = "setup_cloud"
 CONF_NO_CLOUD = "no_cloud"
+CONF_GATEWAY_DEVICE_ID = "gateway_device_id"
 
 # light
 CONF_BRIGHTNESS_LOWER = "brightness_lower"

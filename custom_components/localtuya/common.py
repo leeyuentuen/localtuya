@@ -13,6 +13,7 @@ from homeassistant.const import (
     CONF_ID,
     CONF_PLATFORM,
     CONF_SCAN_INTERVAL,
+    CONF_CLIENT_ID,
 )
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import (
@@ -31,6 +32,7 @@ from .const import (
     DATA_CLOUD,
     DOMAIN,
     TUYA_DEVICES,
+    CONF_GATEWAY_DEVICE_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -159,20 +161,25 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         try:
             self._interface = await pytuya.connect(
                 self._dev_config_entry[CONF_HOST],
-                self._dev_config_entry[CONF_DEVICE_ID],
+                self._dev_config_entry.get(CONF_GATEWAY_DEVICE_ID, self._dev_config_entry[CONF_DEVICE_ID]),
                 self._local_key,
                 float(self._dev_config_entry[CONF_PROTOCOL_VERSION]),
-                self,
+                listener=self,
+                is_gateway=True if self._dev_config_entry.get(CONF_CLIENT_ID) else False,
             )
-            self._interface.add_dps_to_request(self.dps_to_request)
+            if self._dev_config_entry.get(CONF_CLIENT_ID):
+                self._interface.add_sub_device(self._dev_config_entry[CONF_CLIENT_ID])
+            self._interface.add_dps_to_request(self.dps_to_request, cid=self._dev_config_entry.get(CONF_CLIENT_ID))
 
             self.debug("Retrieving initial state")
-            status = await self._interface.status()
+            status = await self._interface.status(cid=self._dev_config_entry.get(CONF_CLIENT_ID))
             if status is None:
                 raise Exception("Failed to retrieve status")
 
             self.status_updated(status)
 
+            if self._disconnect_task is not None:
+                self._disconnect_task()
 
             def _new_entity_handler(entity_id):
                 self.debug(
@@ -253,7 +260,7 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         """Change value of a DP of the Tuya device."""
         if self._interface is not None:
             try:
-                await self._interface.set_dp(state, dp_index)
+                await self._interface.set_dp(state, dp_index, cid=self._dev_config_entry.get(CONF_CLIENT_ID))
             except Exception:  # pylint: disable=broad-except
                 self.exception("Failed to set DP %d to %d", dp_index, state)
         else:
@@ -265,7 +272,7 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         """Change value of a DPs of the Tuya device."""
         if self._interface is not None:
             try:
-                await self._interface.set_dps(states)
+                await self._interface.set_dps(states, cid=self._dev_config_entry.get(CONF_CLIENT_ID))
             except Exception:  # pylint: disable=broad-except
                 self.exception("Failed to set DPs %r", states)
         else:
@@ -276,6 +283,9 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     @callback
     def status_updated(self, status):
         """Device updated status."""
+        cid = self._dev_config_entry.get(CONF_CLIENT_ID)
+        if cid:
+            status = status[cid]
         self._status.update(status)
         self._dispatch_status()
 
