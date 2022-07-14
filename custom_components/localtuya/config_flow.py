@@ -4,6 +4,7 @@ import logging
 import time
 import copy
 from importlib import import_module
+from config.custom_components.localtuya.pytuya import TuyaProtocol
 
 import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.entity_registry as er
@@ -469,7 +470,8 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
         # https://developer.tuya.com/en/docs/cloud/303a03de7e?id=Kb2us379ab2mi
         gateways = {}
         for dev_id, dev in data[DATA_CLOUD].device_list.items():
-            if dev['category'] == 'wg2':
+            # todo: should be not hardcode here
+            if dev['category'] == 'wg2' or dev['category'] == 'wfcon':
                 # identify gateways by local key since sub-devices under
                 # this gateway use the gateway local key
                 gateways[dev['local_key']] = dev_id
@@ -481,14 +483,15 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
                     devices[dev_id] = discovered_devices[dev_id]["ip"]
                 elif dev['local_key'] in gateways:
                     gateway_id = gateways[dev['local_key']]
-                    # this device uses the gateway api for communication
-                    discovered_devices[dev_id] = discovered_devices[gateway_id].copy()
-                    discovered_devices[dev_id][CONF_GATEWAY_DEVICE_ID] = discovered_devices[gateway_id]['gwId']
-                    devices[dev_id] = discovered_devices[gateway_id]["ip"]
-                    # this should be the mac address of the sub device
-                    discovered_devices[dev_id][CONF_CLIENT_ID] = dev['node_id']
-                    # keep the original device id in the gwId
-                    discovered_devices[dev_id]['gwId'] = dev_id
+                    if (gateway_id in discovered_devices.keys()):
+                        # this device uses the gateway api for communication
+                        discovered_devices[dev_id] = discovered_devices[gateway_id].copy()
+                        discovered_devices[dev_id][CONF_GATEWAY_DEVICE_ID] = discovered_devices[gateway_id]['gwId']
+                        devices[dev_id] = discovered_devices[gateway_id]["ip"]
+                        # this should be the mac address of the sub device
+                        discovered_devices[dev_id][CONF_CLIENT_ID] = dev['node_id']
+                        # keep the original device id in the gwId
+                        discovered_devices[dev_id]['gwId'] = dev_id
 
         self.discovered_devices = discovered_devices
 

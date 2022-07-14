@@ -658,6 +658,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
     def _decode_payload(self, payload):
         """Decodes payload received from a Tuya device"""
+
         if not payload:
             payload = "{}"
         elif payload.startswith(b"{"):
@@ -668,12 +669,10 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             # hexdigest of payload
             payload = self.cipher.decrypt(payload[16:])
         elif self.version == 3.3:
-            if payload.startswith(
-                    PROTOCOL_VERSION_BYTES_33
-            ):
+            if payload.startswith(PROTOCOL_VERSION_BYTES_33):
                 payload = payload[len(PROTOCOL_33_HEADER):]
-            payload = self.cipher.decrypt(payload, False)
 
+            payload = self.cipher.decrypt(payload, False)
             if "data unvalid" in payload:
                 self.dev_type = DEV_TYPE_0D
                 self.debug(
