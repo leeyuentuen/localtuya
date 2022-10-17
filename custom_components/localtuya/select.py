@@ -4,7 +4,10 @@ from functools import partial
 
 import voluptuous as vol
 from homeassistant.components.select import DOMAIN, SelectEntity
-from homeassistant.const import CONF_DEVICE_CLASS, STATE_UNKNOWN
+from homeassistant.const import (
+    CONF_DEVICE_CLASS,
+    STATE_UNKNOWN,
+)
 
 from .common import LocalTuyaEntity, async_setup_entry
 
@@ -35,7 +38,6 @@ class LocaltuyaSelect(LocalTuyaEntity, SelectEntity):
         """Initialize the Tuya sensor."""
         super().__init__(device, config_entry, sensorid, _LOGGER, **kwargs)
         self._state = STATE_UNKNOWN
-        self._state_friendly = ""
         self._valid_options = self._config.get(CONF_OPTIONS).split(";")
 
         # Set Display options
@@ -43,7 +45,7 @@ class LocaltuyaSelect(LocalTuyaEntity, SelectEntity):
         display_options_str = ""
         if CONF_OPTIONS_FRIENDLY in self._config:
             display_options_str = self._config.get(CONF_OPTIONS_FRIENDLY).strip()
-        _LOGGER.debug("Display Options Configured: %s", display_options_str)
+        _LOGGER.debug("Display Options Configured: " + display_options_str)
 
         if display_options_str.find(";") >= 0:
             self._display_options = display_options_str.split(";")
@@ -60,11 +62,9 @@ class LocaltuyaSelect(LocalTuyaEntity, SelectEntity):
             str(len(self._display_options)),
         )
         if len(self._valid_options) > len(self._display_options):
-            # If list of display items smaller than list of valid items,
-            # then default remaining items to be the raw value
+            # If list of display items smaller than list of valid items, then default remaining items to be the raw value
             _LOGGER.debug(
-                "Valid options is larger than display options - \
-                           filling up with raw values"
+                "Valid options is larger than display options - filling up with raw values"
             )
             for i in range(len(self._display_options), len(self._valid_options)):
                 self._display_options.append(self._valid_options[i])
@@ -86,9 +86,9 @@ class LocaltuyaSelect(LocalTuyaEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Update the current value."""
-        option_value = self._valid_options[self._display_options.index(option)]
-        _LOGGER.debug("Sending Option: " + option + " -> " + option_value)
-        await self._device.set_dp(option_value, self._dp_id)
+        optionValue = self._valid_options[self._display_options.index(option)]
+        _LOGGER.debug("Sending Option: " + option + " -> " + optionValue)
+        await self._device.set_dp(optionValue, self._dp_id)
 
     def status_updated(self):
         """Device status was updated."""
