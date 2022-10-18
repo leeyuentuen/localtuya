@@ -56,13 +56,14 @@ from hashlib import md5
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from config.localtuya.custom_components.localtuya.const import (
+from config.custom_components.localtuya.const import (
     PARAMETER_CID,
     PARAMETER_DEV_ID,
     PARAMETER_DP_ID,
     PARAMETER_GW_ID,
     PARAMETER_UID,
     PROPERTY_DPS,
+    STATUS_LAST_UPDATED_CID,
 )
 from homeassistant.const import CONF_DEVICE_ID
 
@@ -845,9 +846,9 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 self.info(
                     "Sub-device status update ignored because cid %s is not added", cid
                 )
-                self.dps_cache["last_updated_cid"] = ""
+                self.dps_cache[STATUS_LAST_UPDATED_CID] = ""
             else:
-                self.dps_cache["last_updated_cid"] = cid
+                self.dps_cache[STATUS_LAST_UPDATED_CID] = cid
                 self.dps_cache[cid].update(status[PROPERTY_DPS])
         else:
             self.dps_cache.update(status[PROPERTY_DPS])

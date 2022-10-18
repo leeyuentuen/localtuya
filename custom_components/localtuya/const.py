@@ -132,6 +132,7 @@ PARAMETER_VERSION = "version"
 
 STATUS_RETRY = "retry_status"
 STATUS_LAST_USED = "use_last_status"
+STATUS_LAST_UPDATED_CID = "last_updated_cid"
 
 CONF_DP = "dp"
 CONF_VALUE = "value"

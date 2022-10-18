@@ -208,7 +208,7 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                     timedelta(seconds=self._config_entry[CONF_SCAN_INTERVAL]),
                 )
         except Exception:  # pylint: disable=broad-except
-            self.exception(f"Connect to {self._config_entry[CONF_HOST]} failed")
+            self.warning(f"Connect to {self._config_entry[CONF_HOST]} failed")
             if self._interface is not None:
                 await self._interface.close()
                 self._interface = None
@@ -352,7 +352,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             )
 
         except Exception:  # pylint: disable=broad-except
-            self.exception(f"Connect to gateway {self._config_entry[CONF_HOST]} failed")
+            self.warning(f"Connect to gateway {self._config_entry[CONF_HOST]} failed")
             if self._interface is not None:
                 await self._interface.close()
                 self._interface = None
