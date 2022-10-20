@@ -26,6 +26,7 @@ from . import pytuya
 from .const import (
     CONF_DP_INDEX,
     CONF_LOCAL_KEY,
+    CONF_MODEL,
     CONF_PRODUCT_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_IS_GATEWAY,
@@ -698,9 +699,10 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
                 (DOMAIN, f"local_{self._config_entry.data[CONF_DEVICE_ID]}")
             },
             "name": self._config_entry.data[CONF_FRIENDLY_NAME],
-            "manufacturer": "Unknown",
-            "model": self._config_entry.data.get(CONF_PRODUCT_KEY, "Tuya generic"),
+            "manufacturer": "Tuya generic",
+            "model": self._config_entry.data.get(CONF_MODEL),  # model ,
             "sw_version": self._config_entry.data[CONF_PROTOCOL_VERSION],
+            "hw_version": self._config_entry.data.get(CONF_PRODUCT_KEY),  # product_name
         }
 
     @property

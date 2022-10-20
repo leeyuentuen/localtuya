@@ -10,6 +10,7 @@ CONF_DPS_STRINGS = "dps_strings"
 CONF_PRODUCT_KEY = "product_key"
 CONF_IS_GATEWAY = "is_gateway"
 CONF_PARENT_GATEWAY = "parent_gateway"
+CONF_MODEL = "model"
 
 # light
 CONF_BRIGHTNESS_LOWER = "brightness_lower"

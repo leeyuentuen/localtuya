@@ -13,6 +13,7 @@ from homeassistant.const import (
     CONF_FRIENDLY_NAME,
     CONF_HOST,
     CONF_ID,
+    CONF_MODEL,
     CONF_PLATFORM,
     CONF_SCAN_INTERVAL,
 )
@@ -57,6 +58,8 @@ BASIC_INFO_SCHEMA = vol.Schema(
         vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
         vol.Optional(CONF_IS_GATEWAY): cv.boolean,
         vol.Optional(CONF_SCAN_INTERVAL): int,
+        vol.Optional(CONF_PRODUCT_KEY): cv.string,
+        vol.Optional(CONF_MODEL): cv.string,
     }
 )
 
@@ -70,6 +73,8 @@ DEVICE_SCHEMA = vol.Schema(
         vol.Optional(CONF_LOCAL_KEY): cv.string,
         vol.Optional(CONF_IS_GATEWAY): cv.boolean,
         vol.Optional(CONF_PARENT_GATEWAY): cv.string,
+        vol.Optional(CONF_PRODUCT_KEY): cv.string,
+        vol.Optional(CONF_MODEL): cv.string,
     },
 )
 
@@ -110,6 +115,7 @@ def sub_device_schema(devices):
             vol.Required(CONF_PARENT_GATEWAY): vol.In(device_list),
             vol.Required(CONF_FRIENDLY_NAME): cv.string,
             vol.Required(CONF_DEVICE_ID): cv.string,
+            vol.Optional(CONF_PRODUCT_KEY): str,
         },
     )
 
@@ -130,6 +136,7 @@ def options_schema(entities):
             vol.Required(
                 CONF_ENTITIES, description={"suggested_value": entity_names}
             ): cv.multi_select(entity_names),
+            vol.Optional(CONF_PRODUCT_KEY): str,
         }
     )
 
@@ -204,7 +211,7 @@ def validate_config_schema(config):
         else:
             if not device.get(CONF_HOST):
                 raise vol.Invalid("Host not specified")
-            elif not device.get(CONF_LOCAL_KEY):
+            if not device.get(CONF_LOCAL_KEY):
                 raise vol.Invalid("Local key not specified")
 
     return config
@@ -504,8 +511,7 @@ class LocaltuyaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if user_input.get(FLOW_DP) == 0:
                 if self.basic_info.get(CONF_PARENT_GATEWAY):
                     return await self.async_step_basic_sub_device_info(FLOW_DP)
-                else:
-                    return await self.async_step_basic_info(FLOW_DP)
+                return await self.async_step_basic_info(FLOW_DP)
             else:
                 dp_str = str(user_input[FLOW_DP]) + " (value: Custom)"
                 if dp_str not in self.dps_strings:
