@@ -12,6 +12,7 @@ from homeassistant.const import (
     CONF_ID,
     CONF_PLATFORM,
     CONF_SCAN_INTERVAL,
+    STATE_UNKNOWN,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -24,6 +25,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import pytuya
 from .const import (
+    ATTR_STATE,
     CONF_DP_INDEX,
     CONF_LOCAL_KEY,
     CONF_MODEL,
@@ -229,6 +231,10 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             await self._interface.close()
         if self._disconnect_task is not None:
             self._disconnect_task()
+        self.debug(
+            "Closed connection with device %s.",
+            self._config_entry[CONF_FRIENDLY_NAME],
+        )
 
     async def set_dp(self, state, dp_index):
         """Change value of a DP of the Tuya device."""
@@ -257,7 +263,12 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     @callback
     def status_updated(self, status):
         """Device updated status."""
+        self.debug("Got status update:" + str(status))
+        if PROPERTY_DPS in status:
+            status = status[PROPERTY_DPS]
+
         self._status.update(status)
+        self.debug("Got status new:" + str(self._status))
         self._dispatch_status()
 
     def _dispatch_status(self):
@@ -272,6 +283,10 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         if self._unsub_interval is not None:
             self._unsub_interval()
             self._unsub_interval = None
+
+        if self._interface != None:
+            self._interface.close()
+
         self._interface = None
         self.debug("Disconnected - waiting for discovery broadcast")
 
@@ -329,9 +344,15 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 is_gateway=True,
             )
 
+            self.info("GW Connect?")
+
+            self.info("subitem?")
+            self.info(self._sub_devices.items())
+
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
             for subitem in self._sub_devices.items():
+                self.info(subitem)
                 for value in subitem:
                     if not isinstance(value, dict):
                         return
@@ -382,6 +403,9 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         elif request == GW_REQ_REMOVE:
             if cid not in self._sub_devices:
                 self.warning("Invalid sub-device removal request for %s", cid)
+                if self._interface is not None:
+                    self._interface.remove_sub_device(cid)
+                self._dispatch_event(GW_EVT_DISCONNECTED, None, cid)
             else:
                 del self._sub_devices[cid]
                 if self._interface is not None:
@@ -560,11 +584,16 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         if event == GW_EVT_STATUS_UPDATED:
             self.status_updated(event_data)
         elif event == GW_EVT_CONNECTED:
-            self._is_connected = True
+            self.is_connected(True)
         elif event == GW_EVT_DISCONNECTED:
             self.disconnected()
         else:
             self.debug("Invalid event %s from gateway", event)
+
+    def is_connected(self, connected):
+        """Set is_connected is connected on  Tuya device."""
+        if self._is_connected != connected:
+            self._is_connected = connected
 
     def _async_dispatch_gateway_request(self, request, content):
         """Dispatches a request to the parent gateway using a retry loop"""
@@ -636,7 +665,7 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     @callback
     def disconnected(self):
         """Device disconnected."""
-        self._is_connected = False
+        self.is_connected(False)
         signal = f"localtuya_{self._config_entry[CONF_DEVICE_ID]}"
         async_dispatcher_send(self._hass, signal, None)
 
@@ -654,6 +683,8 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         self._config = get_entity_config(config_entry, dp_id)
         self._dp_id = dp_id
         self._status = {}
+        self._state = None
+        self._last_state = None
         self.set_logger(logger, self._config_entry.data[CONF_DEVICE_ID])
 
     async def async_added_to_hass(self):
@@ -668,14 +699,14 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
 
         def _update_handler(status):
             """Update entity state when status was updated."""
-            update = False
+            update = True
 
             if status is None:
                 self._status = {}
-                update = True
             elif self._status != status and str(self._dp_id) in status:
                 self._status = status.copy()
-                update = True
+            else:
+                update = False
 
             if update:
                 self.status_updated()
@@ -691,6 +722,21 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         async_dispatcher_send(self.hass, signal, self.entity_id)
 
     @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes to be saved.
+        These attributes are then available for restore when the
+        entity is restored at startup.
+        """
+        attributes = {}
+        if self._state is not None:
+            attributes[ATTR_STATE] = self._state
+        elif self._last_state is not None:
+            attributes[ATTR_STATE] = self._last_state
+
+        self.debug("Entity %s - Additional attributes: %s", self.name, attributes)
+        return attributes
+
+    @property
     def device_info(self):
         """Return device information for the device registry."""
         return {
@@ -700,7 +746,7 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
             },
             "name": self._config_entry.data[CONF_FRIENDLY_NAME],
             "manufacturer": "Tuya generic",
-            "model": self._config_entry.data.get(CONF_MODEL),  # model ,
+            "model": self._config_entry.data.get(CONF_MODEL),  # model
             "sw_version": self._config_entry.data[CONF_PROTOCOL_VERSION],
             "hw_version": self._config_entry.data.get(CONF_PRODUCT_KEY),  # product_name
         }
@@ -762,9 +808,63 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
 
         Override in subclasses and update entity specific state.
         """
+        state = self.dps(self._dp_id)
+        self._state = state
+
+        # Keep record in last_state as long as not during connection/re-connection,
+        # as last state will be used to restore the previous state
+        if (state is not None) and (not self._device.is_connecting):
+            self._last_state = state
 
     def status_restored(self, stored_state):
         """Device status was restored.
 
         Override in subclasses and update entity specific state.
         """
+        raw_state = stored_state.attributes.get(ATTR_STATE)
+        if raw_state is not None:
+            self._last_state = raw_state
+            self.debug(
+                "Restoring state for entity: %s - state: %s",
+                self.name,
+                str(self._last_state),
+            )
+
+    def entity_default_value(self):  # pylint: disable=no-self-use
+        """Return default value of the entity type.
+        Override in subclasses to specify the default value for the entity.
+        """
+        return 0
+
+    @property
+    def restore_on_reconnect(self):
+        """Return whether the last state should be restored on a reconnect.
+        Useful where the device loses settings if powered off
+        """
+
+    async def restore_state_when_connected(self):
+        """Restore if restore_on_reconnect is set, or if no status has been yet found.
+        Which indicates a DPS that needs to be set before it starts returning
+        status.
+        """
+
+        self.debug("Attempting to restore state for entity: %s", self.name)
+        # Attempt to restore the current state - in case reset.
+        restore_state = self._state
+
+        # If no state stored in the entity currently, go from last saved state
+        if (restore_state == STATE_UNKNOWN) | (restore_state is None):
+            self.debug("No current state for entity")
+            restore_state = self._last_state
+
+        # If no current or saved state, then use the default value
+
+        self.debug(
+            "Entity %s (DP %d) - Restoring state: %s",
+            self.name,
+            self._dp_id,
+            str(restore_state),
+        )
+
+        # Manually initialise
+        await self._device.set_dp(restore_state, self._dp_id)

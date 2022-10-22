@@ -5,12 +5,12 @@ A Home Assistant custom Integration for local handling of Tuya-based devices.
 This custom integration updates device status via push updates instead of polling, so status updates are fast (even when manually operated).
 
 The following Tuya device types are currently supported:
-* 1 and multiple gang switches
-* Wi-Fi smart plugs (including those with additional USB plugs)
+* Switches
 * Lights
 * Covers
 * Fans
-* Climates (soon)
+* Climates
+* Vacuums
 * Zigbee and Bluetooth gateways and their attached devices
 
 Energy monitoring (voltage, current, watts, etc.) is supported for compatible devices.

@@ -49,9 +49,10 @@ import logging
 import struct
 import time
 import weakref
+import hmac
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from hashlib import md5
+from hashlib import md5, sha256
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -77,14 +78,11 @@ _LOGGER = logging.getLogger(__name__)
 TuyaMessage = namedtuple("TuyaMessage", "seqno cmd retcode payload crc crcpassed")
 
 ACTION_SET = "set"
-ACTION_STATUS = "status"
+ACTION_STATUS = "8"
 ACTION_HEARTBEAT = "heartbeat"
 ACTION_UPDATEDPS = "updatedps"  # Request refresh of DPS
+ACTION_RESET = "reset"
 
-PROTOCOL_VERSION_BYTES_31 = b"3.1"
-PROTOCOL_VERSION_BYTES_33 = b"3.3"
-
-PROTOCOL_33_HEADER = PROTOCOL_VERSION_BYTES_33 + 12 * b"\x00"
 
 MESSAGE_HEADER_FMT = ">4I"  # 4*uint32: prefix, seqno, cmd, length
 MESSAGE_RECV_HEADER_FMT = ">5I"  # 4*uint32: prefix, seqno, cmd, length, retcode
@@ -108,6 +106,75 @@ PUSH_STATUS = 0x08
 COMMAND_HEARTBEAT = 0x09
 COMMAND_DP_QUERY_NEW = 0x10
 COMMAND_UPDATE_DPS = 0x12
+
+# Tuya Command Types
+# Reference: https://github.com/tuya/tuya-iotos-embeded-sdk-wifi-ble-bk7231n/blob/master/sdk/include/lan_protocol.h
+AP_CONFIG = 1  # FRM_TP_CFG_WF      # only used for ap 3.0 network config
+ACTIVE = 2  # FRM_TP_ACTV (discard) # WORK_MODE_CMD
+SESS_KEY_NEG_START = 3  # FRM_SECURITY_TYPE3 # negotiate session key
+SESS_KEY_NEG_RESP = 4  # FRM_SECURITY_TYPE4 # negotiate session key response
+SESS_KEY_NEG_FINISH = 5  # FRM_SECURITY_TYPE5 # finalize session key negotiation
+UNBIND = 6  # FRM_TP_UNBIND_DEV  # DATA_QUERT_CMD - issue command
+CONTROL = 7  # FRM_TP_CMD         # STATE_UPLOAD_CMD
+STATUS = 8  # FRM_TP_STAT_REPORT # STATE_QUERY_CMD
+HEART_BEAT = 9  # FRM_TP_HB
+DP_QUERY = 0x0A  # 10 # FRM_QUERY_STAT      # UPDATE_START_CMD - get data points
+QUERY_WIFI = 0x0B  # 11 # FRM_SSID_QUERY (discard) # UPDATE_TRANS_CMD
+TOKEN_BIND = 0x0C  # 12 # FRM_USER_BIND_REQ   # GET_ONLINE_TIME_CMD - system time (GMT)
+CONTROL_NEW = 0x0D  # 13 # FRM_TP_NEW_CMD      # FACTORY_MODE_CMD
+ENABLE_WIFI = 0x0E  # 14 # FRM_ADD_SUB_DEV_CMD # WIFI_TEST_CMD
+WIFI_INFO = 0x0F  # 15 # FRM_CFG_WIFI_INFO
+DP_QUERY_NEW = 0x10  # 16 # FRM_QUERY_STAT_NEW
+SCENE_EXECUTE = 0x11  # 17 # FRM_SCENE_EXEC
+UPDATEDPS = 0x12  # 18 # FRM_LAN_QUERY_DP    # Request refresh of DPS
+UDP_NEW = 0x13  # 19 # FR_TYPE_ENCRYPTION
+AP_CONFIG_NEW = 0x14  # 20 # FRM_AP_CFG_WF_V40
+BOARDCAST_LPV34 = 0x23  # 35 # FR_TYPE_BOARDCAST_LPV34
+LAN_EXT_STREAM = 0x40  # 64 # FRM_LAN_EXT_STREAM
+
+NO_PROTOCOL_HEADER_CMDS = [
+    DP_QUERY,
+    DP_QUERY_NEW,
+    UPDATEDPS,
+    HEART_BEAT,
+    SESS_KEY_NEG_START,
+    SESS_KEY_NEG_RESP,
+    SESS_KEY_NEG_FINISH,
+]
+
+
+# PROTOCOL_VERSION_BYTES_31 = b"3.1"
+# PROTOCOL_VERSION_BYTES_33 = b"3.3"
+
+# PROTOCOL_33_HEADER = PROTOCOL_VERSION_BYTES_33 + 12 * b"\x00"
+
+
+# Protocol Versions and Headers
+PROTOCOL_VERSION_BYTES_31 = b"3.1"
+PROTOCOL_VERSION_BYTES_33 = b"3.3"
+PROTOCOL_VERSION_BYTES_34 = b"3.4"
+PROTOCOL_3x_HEADER = 12 * b"\x00"
+PROTOCOL_33_HEADER = PROTOCOL_VERSION_BYTES_33 + PROTOCOL_3x_HEADER
+PROTOCOL_34_HEADER = PROTOCOL_VERSION_BYTES_34 + PROTOCOL_3x_HEADER
+MESSAGE_HEADER_FMT = ">4I"  # 4*uint32: prefix, seqno, cmd, length [, retcode]
+MESSAGE_RETCODE_FMT = ">I"  # retcode for received messages
+MESSAGE_END_FMT = ">2I"  # 2*uint32: crc, suffix
+MESSAGE_END_FMT_HMAC = ">32sI"  # 32s:hmac, uint32:suffix
+PREFIX_VALUE = 0x000055AA
+PREFIX_BIN = b"\x00\x00U\xaa"
+SUFFIX_VALUE = 0x0000AA55
+SUFFIX_BIN = b"\x00\x00\xaaU"
+
+NO_PROTOCOL_HEADER_CMDS = [
+    DP_QUERY,
+    DP_QUERY_NEW,
+    UPDATEDPS,
+    HEART_BEAT,
+    SESS_KEY_NEG_START,
+    SESS_KEY_NEG_RESP,
+    SESS_KEY_NEG_FINISH,
+]
+
 
 # This is intended to match requests.json payload at
 # https://github.com/codetheweb/tuyapi :
@@ -146,6 +213,16 @@ PAYLOAD_DICT = {
         ACTION_UPDATEDPS: {
             "hexByte": COMMAND_UPDATE_DPS,
             "command": {PARAMETER_DP_ID: [18, 19, 20]},
+        },
+        ACTION_RESET: {
+            "hexByte": COMMAND_UPDATE_DPS,
+            "command": {
+                PARAMETER_GW_ID: "",
+                PARAMETER_DEV_ID: "",
+                PARAMETER_UID: "",
+                "t": "",
+                PARAMETER_DP_ID: [18, 19, 20],
+            },
         },
     },
     DEV_TYPE_0D: {
@@ -207,8 +284,27 @@ class ContextualLogger:
         return self._logger.exception(msg, *args)
 
 
-def pack_message(msg):
+def pack_message(msg, hmac_key=None):
+    # """Pack a TuyaMessage into bytes."""
+    # # Create full message excluding CRC and suffix
+    # buffer = (
+    #     struct.pack(
+    #         MESSAGE_HEADER_FMT,
+    #         PREFIX_VALUE,
+    #         msg.seqno,
+    #         msg.cmd,
+    #         len(msg.payload) + struct.calcsize(MESSAGE_END_FMT),
+    #     )
+    #     + msg.payload
+    # )
+
+    # # Calculate CRC, add it together with suffix
+    # buffer += struct.pack(MESSAGE_END_FMT, binascii.crc32(buffer), SUFFIX_VALUE)
+
+    # return buffer
+
     """Pack a TuyaMessage into bytes."""
+    end_fmt = MESSAGE_END_FMT_HMAC if hmac_key else MESSAGE_END_FMT
     # Create full message excluding CRC and suffix
     buffer = (
         struct.pack(
@@ -216,15 +312,21 @@ def pack_message(msg):
             PREFIX_VALUE,
             msg.seqno,
             msg.cmd,
-            len(msg.payload) + struct.calcsize(MESSAGE_END_FMT),
+            len(msg.payload) + struct.calcsize(end_fmt),
         )
         + msg.payload
     )
-
+    if hmac_key:
+        crc = hmac.new(hmac_key, buffer, sha256).digest()
+    else:
+        crc = binascii.crc32(buffer) & 0xFFFFFFFF
     # Calculate CRC, add it together with suffix
-    buffer += struct.pack(MESSAGE_END_FMT, binascii.crc32(buffer), SUFFIX_VALUE)
-
+    buffer += struct.pack(end_fmt, crc, SUFFIX_VALUE)
     return buffer
+
+
+def unpack_message(data):
+    """Unpack bytes into a TuyaMessage."""
 
 
 # Commented out by knifehandz 2022/02/13
@@ -280,6 +382,7 @@ class MessageDispatcher(ContextualLogger):
     # Heartbeats always respond with sequence number 0, so they can't be waited for like
     # other messages. This is a hack to allow waiting for heartbeats.
     HEARTBEAT_SEQNO = -100
+    RESET_SEQNO = -101
 
     def __init__(self, dev_id, listener):
         """Initialize a new MessageBuffer."""
@@ -370,9 +473,19 @@ class MessageDispatcher(ContextualLogger):
                 sem.release()
         elif msg.cmd == COMMAND_UPDATE_DPS:
             self.debug("Got normal updatedps response")
+            if self.RESET_SEQNO in self.listeners:
+                sem = self.listeners[self.RESET_SEQNO]
+                self.listeners[self.RESET_SEQNO] = msg
+                sem.release()
         elif msg.cmd == PUSH_STATUS:
-            self.debug("Got status update")
-            self.listener(msg)
+            if self.RESET_SEQNO in self.listeners:
+                self.debug("Got reset status update")
+                sem = self.listeners[self.RESET_SEQNO]
+                self.listeners[self.RESET_SEQNO] = msg
+                sem.release()
+            else:
+                self.debug("Got status update")
+                self.listener(msg)
         elif msg.cmd == COMMAND_DP_QUERY_NEW:
             self.debug("Got dp_query_new response")
         elif msg.cmd == COMMAND_CONTROL_NEW:
@@ -459,6 +572,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
     def connection_made(self, transport):
         """Did connect to the device."""
+        self.transport = transport
+        self.on_connected.set_result(True)
+
+    def start_heartbeat(self):
+        """Start the heartbeat transmissions with the device."""
 
         async def heartbeat_loop():
             """Continuously send heart beat updates."""
@@ -481,8 +599,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             self.transport = None
             transport.close()
 
-        self.transport = transport
-        self.on_connected.set_result(True)
         self.heartbeater = self.loop.create_task(heartbeat_loop())
 
     def data_received(self, data):
@@ -527,12 +643,13 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         payload = self._generate_payload(command, dps, cid)
         dev_type = self.dev_type
 
-        # Wait for special sequence number if heartbeat
-        seqno = (
-            MessageDispatcher.HEARTBEAT_SEQNO
-            if command == ACTION_HEARTBEAT
-            else (self.seqno - 1)
-        )
+        # Wait for special sequence number if heartbeat or reset
+        seqno = self.seqno - 1
+
+        if command == ACTION_HEARTBEAT:
+            seqno = MessageDispatcher.HEARTBEAT_SEQNO
+        elif command == ACTION_RESET:
+            seqno = MessageDispatcher.RESET_SEQNO
 
         self.transport.write(payload)
         msg = await self.dispatcher.wait_for(seqno)
@@ -583,6 +700,15 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         """Send a heartbeat message."""
         return await self.exchange(ACTION_HEARTBEAT)
 
+    async def reset(self, dp_ids=None):
+        """Send a reset message (3.3 only)."""
+        if self.version == 3.3:
+            self.dev_type = "type_0a"
+            self.debug("reset switching to dev_type %s", self.dev_type)
+            return await self.exchange(ACTION_RESET, dp_ids)
+
+        return True
+
     async def update_dps(self, dps=None):
         """
         Request device to update index.
@@ -590,10 +716,14 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         Args:
             dps([int]): list of dps to update, default=detected&whitelisted
         """
+        self.info("myversion ")
+        self.info(self.version)
         if self.version == 3.3:
             if dps is None:
                 if not self.dps_cache:
                     await self.detect_available_dps()
+                self.info("dps_cache")
+                self.info(self.dps_cache)
                 if self.dps_cache:
                     dps = [int(dp) for dp in self.dps_cache]
                     # filter non whitelisted dps
@@ -602,6 +732,8 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             payload = self._generate_payload(ACTION_UPDATEDPS, dps)
             if self.transport is not None:
                 self.transport.write(payload)
+        if self.version == 3.4:
+            self.info("Welcome version 3.4")
         return True
 
     async def set_dp(self, value, dp_index, cid=None):
@@ -655,9 +787,13 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 try:
                     status = await self.status(cid)
                     self._update_dps_cache(status)
-                except Exception as ex:
+                except Exception as ex:  # pylint: disable=broad-except)
                     self.exception("Failed to get status for cid %s: %s", cid, ex)
-                    raise
+                    if self.version != 3.4:
+                        raise
+                    data = {"dps": {}}
+                    for i in range(1, 100):
+                        data["dps"][i] = 0
 
                 self.debug("Detected dps for cid %s: %s", cid, self.dps_cache[cid])
 
@@ -722,7 +858,9 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             del self.dps_cache[cid]
 
     def _decode_payload(self, payload):
+
         """Decodes payload received from a Tuya device"""
+        self.info("Welcome decode payload")
         if not payload:
             payload = "{}"
         elif payload.startswith(b"{"):
@@ -752,90 +890,109 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         self.debug("Decrypted payload: %s", payload)
         return json.loads(payload)
 
-    def _generate_payload(self, command, data=None, cid=None):
+    def _generate_payload(
+        self, command, data=None, cid=None, gwId=None, devId=None, uid=None
+    ):
         """
         Generate the payload to send.
 
         Args:
             command(str): The type of command.
                 This is one of the entries from payload_dict
-            data(dict, optional): The data to be send.
+            data(dict, optional): The data to send.
                 This is what will be passed via the 'dps' entry
-            cid(str, optional): The sub-device CID to send
+            gwId(str, optional): Will be used for gwId
+            devId(str, optional): Will be used for devId
+            uid(str, optional): Will be used for uid
         """
-
-        if self.is_gateway:
-            if command != ACTION_HEARTBEAT:
-                if not cid:
-                    raise Exception("Sub-device cid not specified for gateway")
-                if cid not in self.sub_devices:
-                    raise Exception("Unexpected sub-device cid", cid)
+        self.info("What for command?")
+        self.info(command)
+        if command != ACTION_HEARTBEAT:
+            if not cid:
+                raise Exception("Sub-device cid not specified for gateway")
+            if cid not in self.sub_devices:
+                raise Exception("Unexpected sub-device cid", cid)
 
             payload_dict = GATEWAY_PAYLOAD_DICT
         else:
             payload_dict = PAYLOAD_DICT
 
-        cmd_data = payload_dict[self.dev_type][command]
-        json_data = cmd_data["command"]
-        command_hb = cmd_data["hexByte"]
+        json_data = command_override = None
 
-        if PARAMETER_GW_ID in json_data:
-            json_data[PARAMETER_GW_ID] = self.id
-        if PARAMETER_DEV_ID in json_data:
-            json_data[PARAMETER_DEV_ID] = self.id
-        if PARAMETER_UID in json_data:
-            # still use id, no separate uid
-            json_data[PARAMETER_UID] = self.id
-        if PARAMETER_CID in json_data:
-            # for Zigbee gateways, cid specifies the sub-device
-            json_data[PARAMETER_CID] = cid
+        if command in payload_dict[self.dev_type]:
+            if "command" in payload_dict[self.dev_type][command]:
+                json_data = payload_dict[self.dev_type][command]["command"]
+            if "command_override" in payload_dict[self.dev_type][command]:
+                command_override = payload_dict[self.dev_type][command][
+                    "command_override"
+                ]
+
+        command_hb = payload_dict[self.dev_type][command]["hexByte"]
+        # if self.dev_type != "default":
+        #    if (
+        #        json_data is None
+        #        and command in payload_dict["default"]
+        #        and "command" in payload_dict["default"][command]
+        #    ):
+        #        json_data = payload_dict["default"][command]["command"]
+        #    if (
+        #        command_override is None
+        #        and command in payload_dict["default"]
+        #        and "command_override" in payload_dict["default"][command]
+        #    ):
+        #        command_override = payload_dict["default"][command]["command_override"]
+
+        if command_override is None:
+            command_override = command
+        if json_data is None:
+            # I have yet to see a device complain about included but unneeded attribs, but they *will*
+            # complain about missing attribs, so just include them all unless otherwise specified
+            json_data = {"gwId": "", "devId": "", "uid": "", "t": ""}
+
+        if "gwId" in json_data:
+            if gwId is not None:
+                json_data["gwId"] = gwId
+            else:
+                json_data["gwId"] = self.id
+        if "devId" in json_data:
+            if devId is not None:
+                json_data["devId"] = devId
+            else:
+                json_data["devId"] = self.id
+        if "uid" in json_data:
+            if uid is not None:
+                json_data["uid"] = uid
+            else:
+                json_data["uid"] = self.id
         if "t" in json_data:
-            json_data["t"] = str(int(time.time()))
+            if json_data["t"] == "int":
+                json_data["t"] = int(time.time())
+            else:
+                json_data["t"] = str(int(time.time()))
 
         if data is not None:
-            if PARAMETER_DP_ID in json_data:
-                json_data[PARAMETER_DP_ID] = data
+            if "dpId" in json_data:
+                json_data["dpId"] = data
+            elif "data" in json_data:
+                json_data["data"] = {"dps": data}
             else:
-                json_data[PROPERTY_DPS] = data
-        elif command_hb == COMMAND_CONTROL_NEW:
-            if cid:
-                json_data[PROPERTY_DPS] = self.dps_to_request[cid]
-            else:
-                json_data[PROPERTY_DPS] = self.dps_to_request
+                json_data["dps"] = data
+        elif self.dev_type == "device22" and command == DP_QUERY:
+            json_data["dps"] = self.dps_to_request
 
-        payload = json.dumps(json_data).replace(" ", "").encode("utf-8")
-        self.debug("Send payload: %s", payload)
-
-        if self.version == 3.3:
-            payload = self.cipher.encrypt(payload, False)
-            if command_hb not in [
-                COMMAND_DP_QUERY,
-                COMMAND_DP_QUERY_NEW,
-                COMMAND_UPDATE_DPS,
-            ]:
-                # add the 3.3 header
-                payload = PROTOCOL_33_HEADER + payload
-        elif command == ACTION_SET:
-            payload = self.cipher.encrypt(payload)
-            to_hash = (
-                b"data="
-                + payload
-                + b"||lpv="
-                + PROTOCOL_VERSION_BYTES_31
-                + b"||"
-                + self.local_key
-            )
-            hasher = md5()
-            hasher.update(to_hash)
-            hexdigest = hasher.hexdigest()
-            payload = (
-                PROTOCOL_VERSION_BYTES_31
-                + hexdigest[8:][:16].encode("latin1")
-                + payload
-            )
+        # Create byte buffer from hex data
+        if json_data == "":
+            payload = ""
+        else:
+            payload = json.dumps(json_data)
+        # if spaces are not removed device does not respond!
+        payload = payload.replace(" ", "")
+        payload = payload.encode("utf-8")
+        self.debug("building command %s payload=%r", command, payload)
 
         msg = TuyaMessage(self.seqno, command_hb, 0, payload, 0, True)
         self.seqno += 1
+        # create Tuya message packet
         return pack_message(msg)
 
     def _update_dps_cache(self, status):

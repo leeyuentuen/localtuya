@@ -197,6 +197,8 @@ async def async_setup(hass: HomeAssistant, config: dict):
                 # Save address from config entry in cache to trigger
                 # potential update below
                 device_cache[device_id] = entry.data[CONF_HOST]
+            else:
+                return
 
         if device_id not in device_cache:
             return

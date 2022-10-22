@@ -12,6 +12,16 @@ CONF_IS_GATEWAY = "is_gateway"
 CONF_PARENT_GATEWAY = "parent_gateway"
 CONF_MODEL = "model"
 
+CONF_ACTION = "action"
+CONF_ADD_DEVICE = "add_device"
+CONF_EDIT_DEVICE = "edit_device"
+CONF_SETUP_CLOUD = "setup_cloud"
+CONF_NO_CLOUD = "no_cloud"
+CONF_MANUAL_DPS = "manual_dps_strings"
+CONF_DEFAULT_VALUE = "dps_default_value"
+CONF_RESET_DPIDS = "reset_dpids"
+CONF_PASSIVE_ENTITY = "is_passive_entity"
+
 # light
 CONF_BRIGHTNESS_LOWER = "brightness_lower"
 CONF_BRIGHTNESS_UPPER = "brightness_upper"
@@ -44,9 +54,19 @@ CONF_FAN_ORDERED_LIST = "fan_speed_ordered_list"
 CONF_FAN_DIRECTION = "fan_direction"
 CONF_FAN_DIRECTION_FWD = "fan_direction_forward"
 CONF_FAN_DIRECTION_REV = "fan_direction_reverse"
+CONF_FAN_DPS_TYPE = "fan_dps_type"
 
 # sensor
 CONF_SCALING = "scaling"
+
+# number
+CONF_MIN_VALUE = "min_value"
+CONF_MAX_VALUE = "max_value"
+CONF_STEPSIZE_VALUE = "step_size"
+
+# select
+CONF_OPTIONS = "select_options"
+CONF_OPTIONS_FRIENDLY = "select_options_friendly"
 
 # climate
 CONF_TARGET_TEMPERATURE_DP = "target_temperature_dp"
@@ -119,6 +139,10 @@ GW_EVT_DISCONNECTED = "event_disconnected"
 SUB_DEVICE_RECONNECT_INTERVAL = 300
 
 TUYA_DEVICE = "tuya_device"
+
+# States
+ATTR_STATE = "raw_state"
+CONF_RESTORE_ON_RECONNECT = "restore_on_reconnect"
 
 PROPERTY_DPS = "dps"
 

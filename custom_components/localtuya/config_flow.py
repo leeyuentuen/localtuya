@@ -55,7 +55,9 @@ BASIC_INFO_SCHEMA = vol.Schema(
         vol.Required(CONF_LOCAL_KEY): str,
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_DEVICE_ID): str,
-        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
+        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(
+            ["3.1", "3.3", "3.4"]
+        ),
         vol.Optional(CONF_IS_GATEWAY): cv.boolean,
         vol.Optional(CONF_SCAN_INTERVAL): int,
         vol.Optional(CONF_PRODUCT_KEY): cv.string,
@@ -67,7 +69,9 @@ DEVICE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_DEVICE_ID): cv.string,
         vol.Required(CONF_FRIENDLY_NAME): cv.string,
-        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
+        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(
+            ["3.1", "3.3", "3.4"]
+        ),
         vol.Optional(CONF_SCAN_INTERVAL): int,
         vol.Optional(CONF_HOST): cv.string,
         vol.Optional(CONF_LOCAL_KEY): cv.string,

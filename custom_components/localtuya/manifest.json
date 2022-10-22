@@ -1,7 +1,7 @@
 {
   "domain": "localtuya",
   "name": "LocalTuya integration",
-  "version": "3.2.1",
+  "version": "3.6.0-beta",
   "documentation": "https://github.com/leeyuentuen/localtuya/",
   "dependencies": [],
   "codeowners": [
