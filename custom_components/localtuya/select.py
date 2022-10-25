@@ -26,8 +26,7 @@ def flow_schema(dps):
     return {
         vol.Required(CONF_OPTIONS): str,
         vol.Optional(CONF_OPTIONS_FRIENDLY): str,
-        vol.Required(CONF_RESTORE_ON_RECONNECT): bool,
-        vol.Required(CONF_PASSIVE_ENTITY): bool,
+        vol.Required(CONF_RESTORE_ON_RECONNECT, default=True): bool,
         vol.Optional(CONF_DEFAULT_VALUE): str,
     }
 

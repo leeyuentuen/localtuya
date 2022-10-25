@@ -14,7 +14,6 @@ from .const import (
     CONF_CURRENT,
     CONF_CURRENT_CONSUMPTION,
     CONF_DEFAULT_VALUE,
-    CONF_PASSIVE_ENTITY,
     CONF_RESTORE_ON_RECONNECT,
     CONF_VOLTAGE,
 )
@@ -28,8 +27,7 @@ def flow_schema(dps):
         vol.Optional(CONF_CURRENT): vol.In(dps),
         vol.Optional(CONF_CURRENT_CONSUMPTION): vol.In(dps),
         vol.Optional(CONF_VOLTAGE): vol.In(dps),
-        vol.Required(CONF_RESTORE_ON_RECONNECT): bool,
-        vol.Required(CONF_PASSIVE_ENTITY): bool,
+        vol.Required(CONF_RESTORE_ON_RECONNECT, default=True): bool,
         vol.Optional(CONF_DEFAULT_VALUE): str,
     }
 

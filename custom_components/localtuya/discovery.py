@@ -14,7 +14,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from .const import (
     PARAMETER_GW_ID,
-    PARAMETER_IP,
 )
 
 _LOGGER = logging.getLogger(__name__)
