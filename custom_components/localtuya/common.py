@@ -284,8 +284,8 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self._unsub_interval()
             self._unsub_interval = None
 
-        if self._interface != None:
-            self._interface.close()
+        #        if self._interface != None:
+        #            self._interface.close()
 
         self._interface = None
         self.debug("Disconnected - waiting for discovery broadcast")
@@ -343,11 +343,6 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 self,
                 is_gateway=True,
             )
-
-            self.info("GW Connect?")
-
-            self.info("subitem?")
-            self.info(self._sub_devices.items())
 
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
@@ -813,8 +808,8 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
 
         # Keep record in last_state as long as not during connection/re-connection,
         # as last state will be used to restore the previous state
-        if (state is not None) and (not self._device.is_connecting):
-            self._last_state = state
+        # if (state is not None) and (not self._device.is_connecting):
+        #    self._last_state = state
 
     def status_restored(self, stored_state):
         """Device status was restored.
