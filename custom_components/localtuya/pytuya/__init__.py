@@ -377,29 +377,34 @@ class MessageDispatcher(ContextualLogger):
     def _dispatch(self, msg):
         """Dispatch a message to someone that is listening."""
         self.debug("Dispatching message %s", msg)
+
         if msg.seqno in self.listeners:
             self.debug("Dispatching sequence number %d", msg.seqno)
             sem = self.listeners[msg.seqno]
             self.listeners[msg.seqno] = msg
-            sem.release()
+            if hasattr(sem, "release"):
+                sem.release()
         elif msg.cmd == COMMAND_HEARTBEAT:
             self.debug("Got heartbeat response")
             if self.HEARTBEAT_SEQNO in self.listeners:
                 sem = self.listeners[self.HEARTBEAT_SEQNO]
                 self.listeners[self.HEARTBEAT_SEQNO] = msg
-                sem.release()
+                if hasattr(sem, "release"):
+                    sem.release()
         elif msg.cmd == COMMAND_UPDATE_DPS:
             self.debug("Got normal updatedps response")
             if self.RESET_SEQNO in self.listeners:
                 sem = self.listeners[self.RESET_SEQNO]
                 self.listeners[self.RESET_SEQNO] = msg
-                sem.release()
+                if hasattr(sem, "release"):
+                    sem.release()
         elif msg.cmd == PUSH_STATUS:
             if self.RESET_SEQNO in self.listeners:
                 self.debug("Got reset status update")
                 sem = self.listeners[self.RESET_SEQNO]
                 self.listeners[self.RESET_SEQNO] = msg
-                sem.release()
+                if hasattr(sem, "release"):
+                    sem.release()
             else:
                 self.debug("Got status update")
                 self.listener(msg)
@@ -497,16 +502,16 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
         async def heartbeat_loop():
             """Continuously send heart beat updates."""
-            self.debug("Started heartbeat loop")
+            self.info("Started heartbeat loop")
             while True:
                 try:
                     await self.heartbeat()
                     await asyncio.sleep(HEARTBEAT_INTERVAL)
                 except asyncio.CancelledError:
-                    self.debug("Stopped heartbeat loop")
+                    self.info("Stopped heartbeat loop")
                     raise
                 except asyncio.TimeoutError:
-                    self.debug("Heartbeat failed due to timeout, disconnecting")
+                    self.info("Heartbeat failed due to timeout, disconnecting")
                     break
                 except Exception as ex:  # pylint: disable=broad-except
                     self.exception("Heartbeat failed (%s), disconnecting", ex)
@@ -560,6 +565,13 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         payload = self._generate_payload(command, dps, cid)
         dev_type = self.dev_type
 
+        # Wait for special sequence number if heartbeat
+        seqno = (
+            MessageDispatcher.HEARTBEAT_SEQNO
+            if command == ACTION_HEARTBEAT
+            else (self.seqno - 1)
+        )
+
         # Wait for special sequence number if heartbeat or reset
         seqno = self.seqno - 1
 
@@ -571,11 +583,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         self.transport.write(payload)
         msg = await self.dispatcher.wait_for(seqno)
         if msg is None:
-            self.debug("Wait was aborted for seqno %d", seqno)
+            self.info("Wait was aborted for seqno %d", seqno)
             return None
 
         if not msg.crcpassed:
-            self.debug(
+            self.info(
                 "CRC for sequence number %d failed, resending command %s",
                 seqno,
                 command,
@@ -633,14 +645,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         Args:
             dps([int]): list of dps to update, default=detected&whitelisted
         """
-        self.info("myversion ")
-        self.info(self.version)
         if self.version == 3.3:
             if dps is None:
                 if not self.dps_cache:
                     await self.detect_available_dps()
-                self.info("dps_cache")
-                self.info(self.dps_cache)
+
                 if self.dps_cache:
                     dps = [int(dp) for dp in self.dps_cache]
                     # filter non whitelisted dps
@@ -650,7 +659,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             if self.transport is not None:
                 self.transport.write(payload)
         if self.version == 3.4:
-            self.info("Welcome version 3.4")
+            self.debug("Welcome version 3.4")
         return True
 
     async def set_dp(self, value, dp_index, cid=None):
@@ -777,7 +786,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
     def _decode_payload(self, payload):
 
         """Decodes payload received from a Tuya device"""
-        self.info("Welcome decode payload")
         if not payload:
             payload = "{}"
         elif payload.startswith(b"{"):
@@ -902,10 +910,12 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         if self.is_gateway:
             cid = status[PARAMETER_CID]
             if cid not in self.sub_devices:
-                self.info(
+                self.debug(
                     "Sub-device status update ignored because cid %s is not added", cid
                 )
                 self.dps_cache[STATUS_LAST_UPDATED_CID] = ""
+                # readd device
+                self.add_sub_device(cid)
             else:
                 self.dps_cache[STATUS_LAST_UPDATED_CID] = cid
                 self.dps_cache[cid].update(status[PROPERTY_DPS])

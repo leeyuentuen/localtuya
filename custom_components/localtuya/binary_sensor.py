@@ -55,19 +55,29 @@ class LocaltuyaBinarySensor(LocalTuyaEntity, BinarySensorEntity):
         """Device status was updated."""
         super().status_updated()
 
-        state = str(self.dps(self._dp_id)).lower()
+        state = self.dps(self._dp_id)
+        if state is None:
+            return
+
+        state = str(state).lower()
+
         if state == self._config[CONF_STATE_ON].lower():
             self._is_on = True
         elif state == self._config[CONF_STATE_OFF].lower():
             self._is_on = False
         else:
             self.warning(
-                "State for entity %s did not match state patterns", self.entity_id
+                "State (%s) for entity %s did not match state patterns %s/%s",
+                state,
+                self.entity_id,
+                CONF_STATE_ON,
+                CONF_STATE_OFF,
             )
 
     # No need to restore state for a sensor
     async def restore_state_when_connected(self):
         """Do nothing for a sensor."""
+        self.info("RESTORE STATE? binary %s", self)
         return
 
 

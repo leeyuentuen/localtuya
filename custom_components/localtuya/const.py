@@ -136,7 +136,7 @@ GW_EVT_CONNECTED = "event_connected"
 GW_EVT_DISCONNECTED = "event_disconnected"
 
 # timeouts for gateway & sub-device retry tasks
-SUB_DEVICE_RECONNECT_INTERVAL = 300
+SUB_DEVICE_RECONNECT_INTERVAL = 10
 
 TUYA_DEVICE = "tuya_device"
 

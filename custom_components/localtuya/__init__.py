@@ -323,11 +323,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
                 ]
             )
         )
-
-        hass.data[DOMAIN][entry.entry_id][UNSUB_LISTENER]()
-        await hass.data[DOMAIN][entry.entry_id][TUYA_DEVICE].close()
-        if unload_ok:
-            hass.data[DOMAIN].pop(entry.entry_id)
+        if entry.entry_id in hass.data[DOMAIN]:
+            if UNSUB_LISTENER in hass.data[DOMAIN][entry.entry_id]:
+                hass.data[DOMAIN][entry.entry_id][UNSUB_LISTENER]()
+                await hass.data[DOMAIN][entry.entry_id][TUYA_DEVICE].close()
+                if unload_ok:
+                    hass.data[DOMAIN].pop(entry.entry_id)
 
     return True
 
@@ -341,7 +342,7 @@ async def async_remove_orphan_entities(hass, entry):
     """Remove entities associated with config entry that has been removed."""
     ent_reg = er.async_get(hass)
     entities = {
-        int(ent.unique_id.split("_")[-1]): ent.entity_id
+        ent.unique_id: ent.entity_id
         for ent in er.async_entries_for_config_entry(ent_reg, entry.entry_id)
     }
 
