@@ -81,7 +81,9 @@ class LocaltuyaSwitch(LocalTuyaEntity, SwitchEntity):
 
     def status_updated(self):
         """Device status was updated."""
-        self._state = self.dps(self._dp_id)
+        state = self.dps(self._dp_id)
+        if state is not None:
+            self._state = state
 
     # Default value is the "OFF" state
     def entity_default_value(self):

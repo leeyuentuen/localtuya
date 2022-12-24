@@ -353,7 +353,10 @@ class LocaltuyaClimate(LocalTuyaEntity, ClimateEntity):
 
     def status_updated(self):
         """Device status was updated."""
-        self._state = self.dps(self._dp_id)
+        state = self.dps(self._dp_id)
+
+        if state is not None:
+            self._state = state
 
         if (
             self.has_config(CONF_TARGET_TEMPERATURE_DP)

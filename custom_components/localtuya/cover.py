@@ -251,7 +251,9 @@ class LocaltuyaCover(LocalTuyaEntity, CoverEntity):
     def status_updated(self):
         """Device status was updated."""
         self._previous_state = self._state
-        self._state = self.dps(self._dp_id)
+        state = self.dps(self._dp_id)
+        if state is not None:
+            self._state = state
 
         if self._state is not None:
             if self._state.isupper():

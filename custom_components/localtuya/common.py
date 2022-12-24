@@ -796,7 +796,8 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         Override in subclasses and update entity specific state.
         """
         state = self.dps(self._dp_id)
-        self._state = state
+        if state is not None:
+            self._state = state
 
     def status_restored(self, stored_state):
         """Device status was restored.

@@ -105,11 +105,11 @@ class LocaltuyaNumber(LocalTuyaEntity, NumberEntity):
         """Update the current value."""
         await self._device.set_dp(value, self._dp_id)
 
-    # not used?
-    #    def status_updated(self):
-    #        """Device status was updated."""
-    #        state = self.dps(self._dp_id)
-    #        self._state = state
+    def status_updated(self):
+        """Device status was updated."""
+        state = self.dps(self._dp_id)
+        if state is not None:
+            self._state = state
 
     # Default value is the minimum value
     def entity_default_value(self):
