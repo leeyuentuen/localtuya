@@ -212,13 +212,11 @@ class LocaltuyaLight(LocalTuyaEntity, LightEntity):
                 if self._color_temp_reverse
                 else self._color_temp
             )
-            return int(
-                self._max_mired
-                - (
-                    ((self._max_mired - self._min_mired) / self._upper_color_temp)
-                    * color_temp_value
-                )
-            )
+
+            value = (self._max_mired - self._min_mired) / self._upper_color_temp
+
+            if value is not None and color_temp_value is not None:
+                return int(self._max_mired - (value * color_temp_value))
         return None
 
     @property
