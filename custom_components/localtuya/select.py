@@ -12,7 +12,6 @@ from .const import (
     CONF_OPTIONS_FRIENDLY,
     CONF_DEFAULT_VALUE,
     CONF_RESTORE_ON_RECONNECT,
-    CONF_PASSIVE_ENTITY,
 )
 
 _LOGGER = logging.getLogger(__name__)

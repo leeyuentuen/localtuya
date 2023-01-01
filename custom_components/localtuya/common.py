@@ -49,6 +49,10 @@ from .const import (
     STATUS_RETRY,
     SUB_DEVICE_RECONNECT_INTERVAL,
     TUYA_DEVICE,
+    CONF_DEFAULT_VALUE,
+    ATTR_STATE,
+    CONF_RESTORE_ON_RECONNECT,
+    CONF_RESET_DPIDS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -147,11 +151,29 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         self._connect_task = None
         self._disconnect_task = None
         self._unsub_interval = None
+        self._entities = []
         self.set_logger(_LOGGER, config_entry[CONF_DEVICE_ID])
+        self._default_reset_dpids = None
+
+        if CONF_RESET_DPIDS in config_entry:
+            reset_ids_str = config_entry[CONF_RESET_DPIDS].split(",")
+
+            self._default_reset_dpids = []
+            for reset_id in reset_ids_str:
+                self._default_reset_dpids.append(int(reset_id.strip()))
 
         # This has to be done in case the device type is type_0d
         for entity in config_entry[CONF_ENTITIES]:
             self.dps_to_request[entity[CONF_ID]] = None
+
+    def add_entities(self, entities):
+        """Set the entities associated with this device."""
+        self._entities.extend(entities)
+
+    @property
+    def is_connecting(self):
+        """Return whether device is currently connecting."""
+        return self._connect_task is not None
 
     @property
     def connected(self):
@@ -178,12 +200,62 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
             self._interface.add_dps_to_request(self.dps_to_request)
 
-            self.debug("Retrieving initial state")
-            status = await self._interface.status()
-            if status is None:
-                raise Exception("Failed to retrieve status")
+        except Exception:  # pylint: disable=broad-except
+            self.exception(f"Connect to {self._config_entry[CONF_HOST]} failed")
+            if self._interface is not None:
+                await self._interface.close()
+                self._interface = None
 
-            self.status_updated(status)
+        if self._interface is not None:
+            try:
+                self.debug("Retrieving initial state")
+                status = await self._interface.status()
+                if status is None:
+                    raise Exception("Failed to retrieve status")
+
+                self._interface.start_heartbeat()
+                self.status_updated(status)
+
+            except Exception as ex:  # pylint: disable=broad-except
+                try:
+                    self.debug(
+                        "Initial state update failed, trying reset command "
+                        + "for DP IDs: %s",
+                        self._default_reset_dpids,
+                    )
+                    await self._interface.reset(self._default_reset_dpids)
+
+                    self.debug("Update completed, retrying initial state")
+                    status = await self._interface.status()
+                    if status is None or not status:
+                        raise Exception("Failed to retrieve status") from ex
+
+                    self._interface.start_heartbeat()
+                    self.status_updated(status)
+
+                except UnicodeDecodeError as exception:  # pylint: disable=broad-except
+                    self.exception(
+                        f"Connect to {self._config_entry[CONF_HOST]} failed: %s",
+                        type(exception),
+                    )
+                    if self._interface is not None:
+                        await self._interface.close()
+                        self._interface = None
+
+                except Exception as exception:  # pylint: disable=broad-except
+                    self.exception(f"Connect to {self._config_entry[CONF_HOST]} failed")
+                    if "json.decode" in str(type(exception)):
+                        await self.update_local_key()
+
+                    if self._interface is not None:
+                        await self._interface.close()
+                        self._interface = None
+
+        if self._interface is not None:
+            # Attempt to restore status for all entities that need to first set
+            # the DPS value before the device will respond with status.
+            for entity in self._entities:
+                await entity.restore_state_when_connected()
 
             if self._disconnect_task is not None:
                 self._disconnect_task()
@@ -210,11 +282,6 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                     self._async_refresh,
                     timedelta(seconds=self._config_entry[CONF_SCAN_INTERVAL]),
                 )
-        except Exception:  # pylint: disable=broad-except
-            self.warning(f"Connect to {self._config_entry[CONF_HOST]} failed")
-            if self._interface is not None:
-                await self._interface.close()
-                self._interface = None
         self._connect_task = None
 
     async def _async_refresh(self, _now):
@@ -242,7 +309,7 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             try:
                 await self._interface.set_dp(state, dp_index)
             except Exception:  # pylint: disable=broad-except
-                self.exception("Failed to set DP %d to %d", dp_index, state)
+                self.exception("Failed to set DP %d to %s", dp_index, str(state))
         else:
             self.error(
                 "Not connected to device %s", self._config_entry[CONF_FRIENDLY_NAME]
@@ -524,6 +591,11 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self.dps_to_request[entity[CONF_ID]] = None
 
     @property
+    def is_connecting(self):
+        """Return whether device is currently connecting."""
+        return not self._is_connected  # should be finetuned here
+
+    @property
     def connected(self):
         """Return if connected to device."""
         return self._is_connected
@@ -674,6 +746,15 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         self._last_state = None
         self.set_logger(logger, self._config_entry.data[CONF_DEVICE_ID])
 
+        # Default value is available to be provided by Platform entities if required
+        self._default_value = self._config.get(CONF_DEFAULT_VALUE)
+
+        """ Restore on connect setting is available to be provided by Platform entities
+        if required"""
+        self._restore_on_reconnect = (
+            self._config.get(CONF_RESTORE_ON_RECONNECT) or False
+        )
+
     async def async_added_to_hass(self):
         """Subscribe localtuya events."""
         await super().async_added_to_hass()
@@ -766,12 +847,8 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
     def dps(self, dp_index):
         """Return cached value for DPS index."""
         value = self._status.get(str(dp_index))
-        if value is None:
-            self.warning(
-                "Entity %s is requesting unknown DPS index %s",
-                self.entity_id,
-                dp_index,
-            )
+        if value is None and self._last_state is not None:
+            return self._last_state
 
         return value
 
@@ -799,6 +876,11 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         if state is not None:
             self._state = state
 
+        # Keep record in last_state as long as not during connection/re-connection,
+        # as last state will be used to restore the previous state
+        if (state is not None) and (not self._device.is_connecting):
+            self._last_state = state
+
     def status_restored(self, stored_state):
         """Device status was restored.
 
@@ -813,6 +895,16 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
                 str(self._last_state),
             )
 
+    def default_value(self):
+        """Return default value of this entity.
+        Override in subclasses to specify the default value for the entity.
+        """
+        # Check if default value has been set - if not, default to the entity defaults.
+        if self._default_value is None:
+            self._default_value = self.entity_default_value()
+
+        return self._default_value
+
     def entity_default_value(self):  # pylint: disable=no-self-use
         """Return default value of the entity type.
         Override in subclasses to specify the default value for the entity.
@@ -824,12 +916,21 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         """Return whether the last state should be restored on a reconnect.
         Useful where the device loses settings if powered off
         """
+        return self._restore_on_reconnect
 
     async def restore_state_when_connected(self):
         """Restore if restore_on_reconnect is set, or if no status has been yet found.
         Which indicates a DPS that needs to be set before it starts returning
         status.
         """
+        if not self.restore_on_reconnect and (str(self._dp_id) in self._status):
+            self.debug(
+                "Entity %s (DP %d) - Not restoring as restore on reconnect is  \
+                disabled for this entity and the entity has an initial status",
+                self.name,
+                self._dp_id,
+            )
+            return
 
         self.debug("Attempting to restore state for entity: %s", self.name)
         # Attempt to restore the current state - in case reset.
@@ -841,6 +942,9 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
             restore_state = self._last_state
 
         # If no current or saved state, then use the default value
+        if restore_state is None:
+            self.debug("No last restored state - using default")
+            restore_state = self.default_value()
 
         self.debug(
             "Entity %s (DP %d) - Restoring state: %s",
