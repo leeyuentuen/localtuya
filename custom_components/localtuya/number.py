@@ -41,6 +41,11 @@ def flow_schema(dps):
             vol.Coerce(float),
             vol.Range(min=0.0, max=1000000.0),
         ),
+        vol.Required(CONF_STEPSIZE_VALUE, default=DEFAULT_STEP): vol.All(
+            vol.Coerce(float),
+            vol.Range(min=0.0, max=1000000.0),
+        ),
+        vol.Optional(CONF_DEFAULT_VALUE): str,
         vol.Required(CONF_RESTORE_ON_RECONNECT, default=True): bool,
     }
 

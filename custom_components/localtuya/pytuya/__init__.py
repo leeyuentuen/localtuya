@@ -96,8 +96,12 @@ SUFFIX_VALUE = 0x0000AA55
 
 HEARTBEAT_INTERVAL = 10
 
+DPS_CURRENT = 18
+DPS_POWER = 19
+DPS_VOLTAGE = 20
+
 # DPS that are known to be safe to use with update_dps (0x12) command
-UPDATE_DPS_WHITELIST = [18, 19, 20]  # Socket (Wi-Fi)
+UPDATE_DPS_WHITELIST = [DPS_CURRENT, DPS_POWER, DPS_VOLTAGE]  # Socket (Wi-Fi)
 
 DEV_TYPE_0A = "type_0a"  # DP_QUERY
 DEV_TYPE_0D = "type_0d"  # CONTROL_NEW
@@ -148,7 +152,7 @@ PAYLOAD_DICT = {
         ACTION_HEARTBEAT: {HEXBYTE: COMMAND_HEARTBEAT, COMMAND: {}},
         ACTION_UPDATEDPS: {
             HEXBYTE: COMMAND_UPDATE_DPS,
-            COMMAND: {PARAMETER_DP_ID: [18, 19, 20]},
+            COMMAND: {PARAMETER_DP_ID: [DPS_CURRENT, DPS_POWER, DPS_VOLTAGE]},
         },
         ACTION_RESET: {
             HEXBYTE: COMMAND_UPDATE_DPS,
@@ -157,7 +161,7 @@ PAYLOAD_DICT = {
                 PARAMETER_DEV_ID: "",
                 PARAMETER_UID: "",
                 "t": "",
-                PARAMETER_DP_ID: [18, 19, 20],
+                PARAMETER_DP_ID: [DPS_CURRENT, DPS_POWER, DPS_VOLTAGE],
             },
         },
     },
@@ -173,7 +177,7 @@ PAYLOAD_DICT = {
         ACTION_HEARTBEAT: {HEXBYTE: COMMAND_HEARTBEAT, COMMAND: {}},
         ACTION_UPDATEDPS: {
             HEXBYTE: COMMAND_UPDATE_DPS,
-            COMMAND: {PARAMETER_DP_ID: [18, 19, 20]},
+            COMMAND: {PARAMETER_DP_ID: [DPS_CURRENT, DPS_POWER, DPS_VOLTAGE]},
         },
     },
 }
@@ -484,6 +488,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
     def connection_made(self, transport):
         """Did connect to the device."""
+        self.transport = transport
+        self.on_connected.set_result(True)
+
+    def start_heartbeat(self):
+        """Start the heartbeat transmissions with the device."""
 
         async def heartbeat_loop():
             """Continuously send heart beat updates."""
@@ -506,8 +515,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             self.transport = None
             transport.close()
 
-        self.transport = transport
-        self.on_connected.set_result(True)
         self.heartbeater = self.loop.create_task(heartbeat_loop())
 
     def data_received(self, data):
@@ -607,6 +614,15 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
     async def heartbeat(self):
         """Send a heartbeat message."""
         return await self.exchange(ACTION_HEARTBEAT)
+
+    async def reset(self, dp_ids=None):
+        """Send a reset message (3.3 only)."""
+        if self.version == 3.3:
+            self.dev_type = DEV_TYPE_0A
+            self.debug("reset switching to dev_type %s", self.dev_type)
+            return await self.exchange(ACTION_RESET, dp_ids)
+
+        return True
 
     async def update_dps(self, dps=None):
         """
