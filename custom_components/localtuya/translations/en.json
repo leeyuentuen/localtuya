@@ -46,7 +46,8 @@
                 "data": {
                     "friendly_name": "Name",
                     "parent_gateway": "Parent Gateway",
-                    "device_id": "Device ID (CID)"
+                    "device_id": "Device ID (CID)",
+                    "product_key": "hw_version in device information for the device registry"
                 }
             },
             "pick_entity_type": {
