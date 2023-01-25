@@ -284,7 +284,7 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self._unsub_interval()
             self._unsub_interval = None
         self._interface = None
-        self.debug("Disconnected - waiting for discovery broadcast")
+        self.debug("Disconnected (TuyaDevice) - waiting for discovery broadcast")
 
 
 class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
@@ -490,10 +490,12 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
         for cid in self._sub_devices:
             self._dispatch_event(GW_EVT_DISCONNECTED, None, cid)
+            self.debug("Disconnected (TuyaGatewayDevice) - event dispatch event_disconnected")
+
 
         self._interface = None
-        self.debug("Disconnected - waiting for discovery broadcast")
-
+        self.debug("Disconnected (TuyaGatewayDevice) - waiting for discovery broadcast")
+        self._connect_task = asyncio.create_task(self._make_connection())
 
 class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     """Cache wrapper for a sub-device under a gateway."""
@@ -578,7 +580,7 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self.debug("Invalid event %s from gateway", event)
 
     def is_connected(self, connected):
-        """Set is_connected is connected on  Tuya device."""
+        """Set is_connected is connected on Tuya device."""
         if self._is_connected != connected:
             self._is_connected = connected
 
@@ -655,8 +657,7 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         self.is_connected(False)
         signal = f"localtuya_{self._config_entry[CONF_DEVICE_ID]}"
         async_dispatcher_send(self._hass, signal, None)
-
-        self.debug("Disconnected")
+        self.debug("Disconnected TuyaSubDevice: %s", signal)
 
 
 class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
@@ -819,11 +820,6 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         """
         return 0
 
-    @property
-    def restore_on_reconnect(self):
-        """Return whether the last state should be restored on a reconnect.
-        Useful where the device loses settings if powered off
-        """
 
     async def restore_state_when_connected(self):
         """Restore if restore_on_reconnect is set, or if no status has been yet found.
