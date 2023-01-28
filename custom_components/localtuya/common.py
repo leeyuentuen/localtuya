@@ -343,19 +343,30 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
             for subitem in self._sub_devices.items():
+                cid = None
+                dps = None
+
                 for value in subitem:
-                    if not isinstance(value, dict):
-                        return
+                    # if value is string then it is a cid
+                    if isinstance(value, str):
+                        cid = value
+                        continue
 
-                    if PROPERTY_DPS not in value.keys():
-                        return
+                    # if value is a dict, then it could have a dps or retry value
+                    if isinstance(value, dict):
+                        if PROPERTY_DPS in value.keys():
+                            dps = value[PROPERTY_DPS]
+                            continue
 
-                    if value[PROPERTY_DPS]:
-                        self._add_sub_device_interface(subitem, subitem[PROPERTY_DPS])
-                        self._dispatch_event(GW_EVT_CONNECTED, None, subitem)
 
-                        # Initial status update
-                        await self._get_sub_device_status(subitem)
+                if cid and dps:
+                    self._add_sub_device_interface(cid, dps)
+                    self._dispatch_event(GW_EVT_CONNECTED, None, cid)
+                    self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
+
+
+                    # Initial status update
+                    await self._get_sub_device_status(subitem)
 
             self._retry_sub_conn_interval = async_track_time_interval(
                 self._hass,
