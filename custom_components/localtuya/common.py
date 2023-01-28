@@ -346,12 +346,24 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 cid = None
                 dps = None
                 self.debug("Parsing subdevice %s", str(subitem))
+                cid = None
+                dps = None
+
                 for value in subitem:
                     # if value is string then it is a cid
                     if isinstance(value, str):
                         cid = value
                         continue
+                    # if value is string then it is a cid
+                    if isinstance(value, str):
+                        cid = value
+                        continue
 
+                    # if value is a dict, then it could have a dps or retry value
+                    if isinstance(value, dict):
+                        if PROPERTY_DPS in value.keys():
+                            dps = value[PROPERTY_DPS]
+                            continue
                     # if value is a dict, then it could have a dps or retry value
                     if isinstance(value, dict):
                         if PROPERTY_DPS in value.keys():
@@ -365,8 +377,8 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                         self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
 
 
-                        # Initial status update
-                        await self._get_sub_device_status(cid)
+                    # Initial status update
+                    await self._get_sub_device_status(cid)
                 except Exception:  # pylint: disable=broad-except
                     self.warning(f"Add subdevice {cid} failed")
 
