@@ -366,7 +366,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
 
                     # Initial status update
-                    await self._get_sub_device_status(subitem)
+                    await self._get_sub_device_status(cid)
 
             self._retry_sub_conn_interval = async_track_time_interval(
                 self._hass,
