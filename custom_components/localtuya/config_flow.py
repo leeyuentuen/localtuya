@@ -55,7 +55,10 @@ BASIC_INFO_SCHEMA = vol.Schema(
         vol.Required(CONF_LOCAL_KEY): str,
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_DEVICE_ID): str,
-        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
+        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"):
+            vol.In(
+                ["3.1", "3.2", "3.3", "3.4"]
+            ),
         vol.Optional(CONF_IS_GATEWAY): cv.boolean,
         vol.Optional(CONF_SCAN_INTERVAL): int,
         vol.Optional(CONF_PRODUCT_KEY): cv.string,
@@ -67,7 +70,9 @@ DEVICE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_DEVICE_ID): cv.string,
         vol.Required(CONF_FRIENDLY_NAME): cv.string,
-        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
+        vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(
+            ["3.1", "3.2", "3.3", "3.4"]
+        ),
         vol.Optional(CONF_SCAN_INTERVAL): int,
         vol.Optional(CONF_HOST): cv.string,
         vol.Optional(CONF_LOCAL_KEY): cv.string,
@@ -130,7 +135,9 @@ def options_schema(entities):
             vol.Required(CONF_FRIENDLY_NAME): str,
             vol.Required(CONF_HOST): str,
             vol.Required(CONF_LOCAL_KEY): str,
-            vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(["3.1", "3.3"]),
+            vol.Required(CONF_PROTOCOL_VERSION, default="3.3"): vol.In(
+                            ["3.1", "3.2", "3.3", "3.4"]
+                        ),
             vol.Optional(CONF_SCAN_INTERVAL): int,
             vol.Optional(CONF_IS_GATEWAY, default=False): cv.boolean,
             vol.Optional(
@@ -622,7 +629,7 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
                 description_placeholders={CONF_DEVICE_ID: device_id},
             )
-        
+
         return self.async_show_form(
             step_id="init",
             data_schema=schema_defaults(
