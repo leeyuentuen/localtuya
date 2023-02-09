@@ -278,13 +278,13 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     @callback
     def disconnected(self):
         """Device disconnected."""
-        signal = f"localtuya_{self._config_entry[CONF_DEVICE_ID]}"
-        async_dispatcher_send(self._hass, signal, None)
+        self._dispatch_status()
         if self._unsub_interval is not None:
             self._unsub_interval()
             self._unsub_interval = None
         self._interface = None
         self.debug("Disconnected (TuyaDevice) - waiting for discovery broadcast")
+        self.async_connect()
 
 
 class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
@@ -405,6 +405,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 }
                 self._add_sub_device_interface(cid, content[PROPERTY_DPS])
                 self._dispatch_event(GW_EVT_CONNECTED, None, cid)
+
                 # Initial status update
                 await self._get_sub_device_status(cid)
         elif request == GW_REQ_REMOVE:
@@ -442,6 +443,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             back online.
         """
         if self._interface is not None:
+            self.info("Getting status for %s", cid)
             status = await self._interface.status(cid)
             self.status_updated(status)
             self._sub_devices[cid][STATUS_RETRY] = False
@@ -496,6 +498,8 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     def status_updated(self, status):
         """Device updated status."""
         if status is None:
+            return
+        if "last_updated_cid" not in status.keys():
             return
         cid = status["last_updated_cid"]
         if cid == "":  # Not a status update we are interested in
@@ -681,7 +685,7 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         """Device disconnected."""
         self.is_connected(False)
         signal = f"localtuya_{self._config_entry[CONF_DEVICE_ID]}"
-        async_dispatcher_send(self._hass, signal, None)
+        async_dispatcher_send(self._hass, signal, self._status)
         self.debug("Disconnected TuyaSubDevice: %s", signal)
 
 
@@ -712,17 +716,14 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
 
         def _update_handler(status):
             """Update entity state when status was updated."""
-            update = False
-
             if status is None:
-                self._status = {}
-                update = True
-            elif self._status != status and str(self._dp_id) in status:
+                status = {}
+            if self._status != status:
                 self._status = status.copy()
-                update = True
+                if status:
+                    self.status_updated()
 
-            if update:
-                self.status_updated()
+                # Update HA
                 self.schedule_update_ha_state()
 
         signal = f"localtuya_{self._config_entry.data[CONF_DEVICE_ID]}"
@@ -746,7 +747,7 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         elif self._last_state is not None:
             attributes[ATTR_STATE] = self._last_state
 
-        self.debug("Entity %s - Additional attributes: %s", self.name, attributes)
+        self.info("Entity %s - Additional attributes: %s", self.name, attributes)
         return attributes
 
     @property
@@ -814,6 +815,7 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
                 self.entity_id,
                 conf_item,
             )
+            return None
         return self.dps(dp_index)
 
     def status_updated(self):
