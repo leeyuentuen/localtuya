@@ -213,20 +213,6 @@ COMMAND_OVERRIDE = "command_override"
 # prefix: # Next byte is command byte ("hexByte") some zero padding, then length
 # of remaining payload, i.e. command + suffix (unclear if multiple bytes used for
 # length, zero padding implies could be more than one byte)
-GATEWAY_PAYLOAD_DICT = {
-    # TYPE_0A should never be used with gateways
-    DEV_TYPE_0D: {
-        DP_QUERY_NEW: {
-            COMMAND: {PARAMETER_CID: ""},
-        },
-        CONTROL_NEW: {
-            COMMAND: {PARAMETER_CID: "", "ctype": 0},
-        },
-        HEART_BEAT: {
-            COMMAND: {}
-        },
-    },
-}
 PAYLOAD_DICT = {
     DEV_TYPE_0A: {
         AP_CONFIG: {  # [BETA] Set Control Values on Device
@@ -238,7 +224,7 @@ PAYLOAD_DICT = {
         CONTROL_NEW: {
             COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}},
         DP_QUERY: {
-            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""},
+            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "" },
         },
         DP_QUERY_NEW: {
             COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""}
@@ -248,24 +234,25 @@ PAYLOAD_DICT = {
         },
         HEART_BEAT: {
             COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""}
+            #COMMAND: {}
         },
         UPDATEDPS: {
             COMMAND: {PARAMETER_DP_ID: [18, 19, 20]},
-        },
-        UPDATEDPS: {
-            COMMAND: {
-                PARAMETER_GW_ID: "",
-                PARAMETER_DEV_ID: "",
-                PARAMETER_UID: "",
-                PARAMETER_T: "",
-                PARAMETER_DP_ID: [18, 19, 20],
-            },
         },
     },
     DEV_TYPE_0D: {
          DP_QUERY: {  # Get Data Points from Device
             COMMAND_OVERRIDE: CONTROL_NEW,  # Uses CONTROL_NEW command for some reason
             COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""},
+        },
+        DP_QUERY_NEW: {
+            COMMAND: {PARAMETER_CID: ""},
+        },
+        HEART_BEAT: {
+            COMMAND: {}
+        },
+        CONTROL_NEW: {
+            COMMAND: {PARAMETER_CID: "", "ctype": 0},
         },
     },
 
@@ -275,6 +262,12 @@ PAYLOAD_DICT = {
             COMMAND: {"protocol": 5, "t": "int", "data": ""},
         },
         DP_QUERY: {COMMAND_OVERRIDE: DP_QUERY_NEW},
+        DP_QUERY_NEW: {
+            COMMAND: {PARAMETER_CID: ""},
+        },
+        HEART_BEAT: {
+            COMMAND: {}
+        },
     },
 }
 
@@ -559,7 +552,8 @@ class MessageDispatcher(ContextualLogger):
             if self.SESS_KEY_SEQNO in self.listeners:
                 sem = self.listeners[self.SESS_KEY_SEQNO]
                 self.listeners[self.SESS_KEY_SEQNO] = msg
-                sem.release()
+                if hasattr(sem, 'release'):
+                    sem.release()
         elif msg.cmd == STATUS:
             if self.RESET_SEQNO in self.listeners:
                 self.info("Got reset status update")
@@ -573,6 +567,8 @@ class MessageDispatcher(ContextualLogger):
             self.debug("Got dp_query_new response")
         elif msg.cmd == CONTROL_NEW:
             self.debug("Got control_new response")
+        elif msg.cmd == DP_QUERY:
+            self.debug("Got dp_query response")
         else:
             if msg.cmd == CONTROL_NEW:
                 self.debug("Got ACK message for command %d: will ignore it", msg.cmd)
@@ -826,6 +822,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         self.debug('payload %s - %s', enc_payload, payload)
         self.transport.write(enc_payload)
         msg = await self.dispatcher.wait_for(seqno, payload.cmd)
+
         if msg is None:
             self.debug("Wait was aborted for seqno %d", seqno)
             return None
@@ -870,13 +867,18 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 return
                 #raise Exception("Unexpected sub-device cid", cid)
 
+            # status = await self.exchange(DP_QUERY_NEW, cid=cid)
             status = await self.exchange(DP_QUERY_NEW, cid=cid)
             if not status:  # Happens when there's an error in decoding
                 return None
         else:
             status = await self.exchange(DP_QUERY)
-            self._update_dps_cache(status)
-            return self.dps_cache
+
+        if status and "dps" in status:
+            self.dps_cache.update(status["dps"])
+
+        self._update_dps_cache(status)
+        return self.dps_cache
 
     async def heartbeat(self):
         """Send a heartbeat message."""
@@ -1231,11 +1233,8 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                     raise Exception("Sub-device cid not specified for gateway")
                 if cid not in self.sub_devices:
                     raise Exception("Unexpected sub-device cid", cid)
-            self.debug("GATEWAY PAYLOAD DICT")
-            payload_dict = GATEWAY_PAYLOAD_DICT
-        else:
-            self.debug("NON-GATEWAY PAYLOAD DICT")
-            payload_dict = PAYLOAD_DICT
+
+        payload_dict = PAYLOAD_DICT
 
         json_data = command_override = None
         if self.dev_type in payload_dict and command in payload_dict[self.dev_type]:
@@ -1249,25 +1248,25 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         if self.dev_type != DEV_TYPE_0A:
             if (
                 json_data is None
-                and DEV_TYPE_0A in payload_dict
-                and command in payload_dict[DEV_TYPE_0A]
-                and command in payload_dict[DEV_TYPE_0A][command]
+                and self.dev_type in payload_dict
+                and command in payload_dict[self.dev_type]
+                and command in payload_dict[self.dev_type][command]
             ):
-                json_data = payload_dict[DEV_TYPE_0A][command][command]
+                json_data = payload_dict[self.dev_type][command][command]
             if (
                 command_override is None
-                and DEV_TYPE_0A in payload_dict
-                and command in payload_dict[DEV_TYPE_0A]
-                and command_override in payload_dict[DEV_TYPE_0A][command]
+                and self.dev_type in payload_dict
+                and command in payload_dict[self.dev_type]
+                and command_override in payload_dict[self.dev_type][command]
             ):
-                command_override = payload_dict[DEV_TYPE_0A][command][command_override]
+                command_override = payload_dict[self.dev_type][command][command_override]
 
         if command_override is None:
             command_override = command
         if json_data is None:
-            # I have yet to see a device complain about included but unneeded attribs, but they *will*
-            # complain about missing attribs, so just include them all unless otherwise specified
-            json_data = {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""}
+            self._logger.info("Unknown dev_type %r, command %r, Load default json_data format", self.dev_type, command)
+            json_data = {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}
+
 
 
         if PARAMETER_GW_ID in json_data:

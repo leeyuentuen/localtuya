@@ -41,7 +41,10 @@ class LocaltuyaSensor(LocalTuyaEntity):
     ):
         """Initialize the Tuya sensor."""
         super().__init__(device, config_entry, sensorid, _LOGGER, **kwargs)
-        self._state = STATE_UNKNOWN
+        if self._state is None:
+            self._state = STATE_UNKNOWN
+        else:
+            self.debug('state not is %s', self._state)
 
     @property
     def state(self):
