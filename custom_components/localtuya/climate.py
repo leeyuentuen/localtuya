@@ -102,6 +102,10 @@ HVAC_ACTION_SETS = {
         HVACAction.HEATING: "Heat",
         HVACAction.IDLE: "Warming",
     },
+    "heating/idle": {
+        HVACAction.HEATING: "Heat",
+        HVACAction.IDLE: "Idle",
+    },
 }
 PRESET_SETS = {
     "Manual/Holiday/Program": {
