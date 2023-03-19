@@ -592,6 +592,7 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self.status_updated(event_data)
         elif event == GW_EVT_CONNECTED:
             self.is_connected(True)
+            self._dispatch_status()
         elif event == GW_EVT_DISCONNECTED:
             self.disconnected()
         else:
