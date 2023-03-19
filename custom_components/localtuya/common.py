@@ -495,7 +495,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
         self._interface = None
         self.debug("Disconnected (TuyaGatewayDevice) - waiting for discovery broadcast")
-        self._connect_task = asyncio.create_task(self._make_connection())
+        # self._connect_task = asyncio.create_task(self._make_connection())
 
 class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     """Cache wrapper for a sub-device under a gateway."""
@@ -820,6 +820,11 @@ class LocalTuyaEntity(RestoreEntity, pytuya.ContextualLogger):
         """
         return 0
 
+    @property
+    def restore_on_reconnect(self):
+        """Return whether the last state should be restored on a reconnect.
+        Useful where the device loses settings if powered off
+        """
 
     async def restore_state_when_connected(self):
         """Restore if restore_on_reconnect is set, or if no status has been yet found.
