@@ -358,15 +358,17 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                             dps = value[PROPERTY_DPS]
                             continue
 
+                try:
+                    if cid and dps:
+                        self._add_sub_device_interface(cid, dps)
+                        self._dispatch_event(GW_EVT_CONNECTED, None, cid)
+                        self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
 
-                if cid and dps:
-                    self._add_sub_device_interface(cid, dps)
-                    self._dispatch_event(GW_EVT_CONNECTED, None, cid)
-                    self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
 
-
-                    # Initial status update
-                    await self._get_sub_device_status(subitem)
+                        # Initial status update
+                        await self._get_sub_device_status(cid)
+                except Exception:  # pylint: disable=broad-except
+                    self.warning(f"Add subdevice {cid} failed")
 
             self._retry_sub_conn_interval = async_track_time_interval(
                 self._hass,
@@ -460,15 +462,20 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         """Retries sub-device status, to be called by a HASS interval"""
 
         for subitem in self._sub_devices.items():
+            cid = None
+            retry = None
             for value in subitem:
-                if not isinstance(value, dict):
-                    return
+                if isinstance(value, str):
+                    cid = value
+                    continue
 
-                if STATUS_RETRY not in value.keys():
-                    return
+                if STATUS_RETRY in value.keys():
+                    retry = value[STATUS_RETRY]
+                    continue
 
-                if value[STATUS_RETRY]:
-                    await self._get_sub_device_status(subitem)
+            if cid and retry:
+                if retry:
+                    await self._get_sub_device_status(cid)
 
     async def close(self):
         """Close connection and stop re-connect loop."""
