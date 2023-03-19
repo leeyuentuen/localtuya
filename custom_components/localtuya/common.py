@@ -339,13 +339,13 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 self,
                 is_gateway=True,
             )
-
+            self.debug("Connected to gateway %s successfully", self._config_entry[CONF_HOST])
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
             for subitem in self._sub_devices.items():
                 cid = None
                 dps = None
-
+                self.debug("Parsing subdevice %s", str(subitem))
                 for value in subitem:
                     # if value is string then it is a cid
                     if isinstance(value, str):
