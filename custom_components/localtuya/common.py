@@ -340,30 +340,20 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 is_gateway=True,
             )
             self.debug("Connected to gateway %s successfully", self._config_entry[CONF_HOST])
+            self.debug("Attempting to reconnect %s subdevices", str(len(self._sub_devices.items())))
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
             for subitem in self._sub_devices.items():
                 cid = None
                 dps = None
                 self.debug("Parsing subdevice %s", str(subitem))
-                cid = None
-                dps = None
 
                 for value in subitem:
                     # if value is string then it is a cid
                     if isinstance(value, str):
                         cid = value
                         continue
-                    # if value is string then it is a cid
-                    if isinstance(value, str):
-                        cid = value
-                        continue
 
-                    # if value is a dict, then it could have a dps or retry value
-                    if isinstance(value, dict):
-                        if PROPERTY_DPS in value.keys():
-                            dps = value[PROPERTY_DPS]
-                            continue
                     # if value is a dict, then it could have a dps or retry value
                     if isinstance(value, dict):
                         if PROPERTY_DPS in value.keys():
