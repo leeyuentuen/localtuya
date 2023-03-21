@@ -508,6 +508,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self._retry_sub_conn_interval()
             self._retry_sub_conn_interval = None
 
+        self.debug("Starting to send event_disconnected to %s devices", str(len(self._sub_devices)))
         for cid in self._sub_devices:
             self._dispatch_event(GW_EVT_DISCONNECTED, None, cid)
             self.debug("Disconnected (TuyaGatewayDevice) - event dispatch event_disconnected")
