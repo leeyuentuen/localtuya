@@ -369,8 +369,8 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
                     # Initial status update
                     await self._get_sub_device_status(cid)
-                except Exception:  # pylint: disable=broad-except
-                    self.warning(f"Add subdevice {cid} failed")
+                except Exception as e:  # pylint: disable=broad-except
+                    self.warning("Adding subdevice %s failed with exception\n %s", cid, str(e))
 
             self._retry_sub_conn_interval = async_track_time_interval(
                 self._hass,
@@ -378,8 +378,8 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 timedelta(seconds=SUB_DEVICE_RECONNECT_INTERVAL),
             )
 
-        except Exception:  # pylint: disable=broad-except
-            self.warning(f"Connect to gateway {self._config_entry[CONF_HOST]} failed")
+        except Exception as e:  # pylint: disable=broad-except
+            self.warning("Connect to gateway %s failed with exception\n %s", self._config_entry[CONF_HOST], str(e))
             if self._interface is not None:
                 await self._interface.close()
                 self._interface = None
