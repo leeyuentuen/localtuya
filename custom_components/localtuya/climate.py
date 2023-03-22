@@ -77,6 +77,13 @@ HVAC_MODE_SETS = {
         HVACMode.HEAT: "1",
         HVACMode.AUTO: "0",
     },
+    "hot/cold/wet/wind/auto": {
+        HVACMode.HEAT: "hot",
+        HVACMode.COOL: "cold",
+        HVACMode.DRY: "wet",
+        HVACMode.FAN_ONLY: "wind",
+        HVACMode.AUTO: "auto",
+    },
 }
 HVAC_ACTION_SETS = {
     "True/False": {
@@ -94,6 +101,10 @@ HVAC_ACTION_SETS = {
     "Heat/Warming": {
         HVACAction.HEATING: "Heat",
         HVACAction.IDLE: "Warming",
+    },
+    "heating/idle": {
+        HVACAction.HEATING: "Heat",
+        HVACAction.IDLE: "Idle",
     },
 }
 PRESET_SETS = {
