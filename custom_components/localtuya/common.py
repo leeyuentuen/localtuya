@@ -339,12 +339,15 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 self,
                 is_gateway=True,
             )
+            self.debug("Connected to gateway %s successfully", self._config_entry[CONF_HOST])
+            self.debug("Attempting to reconnect %s subdevices", str(len(self._sub_devices.items())))
 
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
             for subitem in self._sub_devices.items():
                 cid = None
                 dps = None
+                self.debug("Parsing subdevice %s", str(subitem))
 
                 for value in subitem:
                     # if value is string then it is a cid
@@ -359,14 +362,17 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                             continue
 
 
-                if cid and dps:
-                    self._add_sub_device_interface(cid, dps)
-                    self._dispatch_event(GW_EVT_CONNECTED, None, cid)
-                    self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
+                try:
+                    if cid and dps:
+                        self._add_sub_device_interface(cid, dps)
+                        self._dispatch_event(GW_EVT_CONNECTED, None, cid)
+                        self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
 
 
-                    # Initial status update
-                    await self._get_sub_device_status(subitem)
+                        # Initial status update
+                        await self._get_sub_device_status(cid)
+                except Exception as e:  # pylint: disable=broad-except
+                    self.warning("Adding subdevice %s failed with exception\n %s", cid, str(e))
 
             self._retry_sub_conn_interval = async_track_time_interval(
                 self._hass,
@@ -374,8 +380,8 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 timedelta(seconds=SUB_DEVICE_RECONNECT_INTERVAL),
             )
 
-        except Exception:  # pylint: disable=broad-except
-            self.warning(f"Connect to gateway {self._config_entry[CONF_HOST]} failed")
+        except Exception as e:  # pylint: disable=broad-except
+            self.warning("Connect to gateway %s failed with exception\n %s", self._config_entry[CONF_HOST], str(e))
             if self._interface is not None:
                 await self._interface.close()
                 self._interface = None
@@ -460,15 +466,20 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         """Retries sub-device status, to be called by a HASS interval"""
 
         for subitem in self._sub_devices.items():
+            cid = None
+            retry = None
             for value in subitem:
-                if not isinstance(value, dict):
-                    return
+                if isinstance(value, str):
+                    cid = value
+                    continue
 
-                if STATUS_RETRY not in value.keys():
-                    return
+                if STATUS_RETRY in value.keys():
+                    retry = value[STATUS_RETRY]
+                    continue
 
-                if value[STATUS_RETRY]:
-                    await self._get_sub_device_status(subitem)
+            if cid and retry:
+                if retry:
+                    await self._get_sub_device_status(cid)
 
     async def close(self):
         """Close connection and stop re-connect loop."""
@@ -499,6 +510,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self._retry_sub_conn_interval()
             self._retry_sub_conn_interval = None
 
+        self.debug("Sending event_disconnected to %s subdevices", str(len(self._sub_devices)))
         for cid in self._sub_devices:
             self._dispatch_event(GW_EVT_DISCONNECTED, None, cid)
             self.debug("Disconnected (TuyaGatewayDevice) - event dispatch event_disconnected")
@@ -585,6 +597,7 @@ class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self.status_updated(event_data)
         elif event == GW_EVT_CONNECTED:
             self.is_connected(True)
+            self._dispatch_status()
         elif event == GW_EVT_DISCONNECTED:
             self.disconnected()
         else:
