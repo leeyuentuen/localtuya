@@ -814,8 +814,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             seqno = MessageDispatcher.HEARTBEAT_SEQNO
         elif command == UPDATEDPS:
             seqno = MessageDispatcher.RESET_SEQNO
-        else:
-            seqno = self.seqno - 1
 
         enc_payload = self._encode_message(payload)
         self.debug("Dispatching sequence number %d", seqno)
@@ -983,6 +981,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 for i in range(1, 100):
                     data["dps"][i] = 0
 
+        self.debug("Detected dps: %s", self.dps_cache)
         return self.dps_cache
 
     def add_dps_to_request(self, dp_indicies, cid=None):
@@ -1238,11 +1237,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
         json_data = command_override = None
         if self.dev_type in payload_dict and command in payload_dict[self.dev_type]:
-            if command in payload_dict[self.dev_type]:
-                json_data = payload_dict[self.dev_type][command]
-            if command_override in payload_dict[self.dev_type][command]:
+            if COMMAND in payload_dict[self.dev_type][command]:
+                json_data = payload_dict[self.dev_type][command][COMMAND]
+            if COMMAND_OVERRIDE in payload_dict[self.dev_type][command]:
                 command_override = payload_dict[self.dev_type][command][
-                    command_override
+                    COMMAND_OVERRIDE
                 ]
 
         if self.dev_type != DEV_TYPE_0A:
@@ -1250,16 +1249,16 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 json_data is None
                 and self.dev_type in payload_dict
                 and command in payload_dict[self.dev_type]
-                and command in payload_dict[self.dev_type][command]
+                and COMMAND in payload_dict[self.dev_type][command]
             ):
                 json_data = payload_dict[self.dev_type][command][command]
             if (
                 command_override is None
                 and self.dev_type in payload_dict
                 and command in payload_dict[self.dev_type]
-                and command_override in payload_dict[self.dev_type][command]
+                and COMMAND_OVERRIDE in payload_dict[self.dev_type][command]
             ):
-                command_override = payload_dict[self.dev_type][command][command_override]
+                command_override = payload_dict[self.dev_type][command][COMMAND_OVERRIDE]
 
         if command_override is None:
             command_override = command
@@ -1310,7 +1309,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         elif self.dev_type == DEV_TYPE_0D and command == DP_QUERY:
             json_data[PROPERTY_DPS] = self.dps_to_request
 
-        payload = json.dumps(json_data).replace(" ", "").encode("utf-8")
         if json_data == "":
             payload = ""
         else:
