@@ -347,6 +347,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 cid = None
                 dps = None
                 self.debug("Parsing subdevice %s", str(subitem))
+
                 for value in subitem:
                     # if value is string then it is a cid
                     if isinstance(value, str):
@@ -359,6 +360,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                             dps = value[PROPERTY_DPS]
                             continue
 
+
                 try:
                     if cid and dps:
                         self._add_sub_device_interface(cid, dps)
@@ -366,8 +368,9 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                         self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
 
 
-                    # Initial status update
-                    await self._get_sub_device_status(cid)
+                        # Initial status update
+                        await self._get_sub_device_status(cid)
+
                 except Exception as e:  # pylint: disable=broad-except
                     self.warning("Adding subdevice %s failed with exception\n %s", cid, str(e))
 
@@ -498,6 +501,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         if cid == "":  # Not a status update we are interested in
             return
 
+
         self._dispatch_event(GW_EVT_STATUS_UPDATED, status[cid], cid)
 
     @callback
@@ -507,7 +511,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             self._retry_sub_conn_interval()
             self._retry_sub_conn_interval = None
 
-        self.debug("Starting to send event_disconnected to %s devices", str(len(self._sub_devices)))
+        self.debug("Sending event_disconnected to %s subdevices", str(len(self._sub_devices)))
         for cid in self._sub_devices:
             self._dispatch_event(GW_EVT_DISCONNECTED, None, cid)
             self.debug("Disconnected (TuyaGatewayDevice) - event dispatch event_disconnected")
