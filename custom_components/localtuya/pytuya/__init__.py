@@ -814,8 +814,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             seqno = MessageDispatcher.HEARTBEAT_SEQNO
         elif command == UPDATEDPS:
             seqno = MessageDispatcher.RESET_SEQNO
-        else:
-            seqno = self.seqno - 1
 
         enc_payload = self._encode_message(payload)
         self.debug("Dispatching sequence number %d", seqno)
@@ -983,6 +981,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 for i in range(1, 100):
                     data["dps"][i] = 0
 
+        self.debug("Detected dps: %s", self.dps_cache)
         return self.dps_cache
 
     def add_dps_to_request(self, dp_indicies, cid=None):
