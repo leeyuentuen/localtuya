@@ -341,7 +341,6 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
             )
             self.debug("Connected to gateway %s successfully", self._config_entry[CONF_HOST])
             self.debug("Attempting to reconnect %s subdevices", str(len(self._sub_devices.items())))
-
             # Re-add and get status of previously added sub-devices
             # Note this assumes the gateway device has not been tear down
             for subitem in self._sub_devices.items():
@@ -371,6 +370,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
                         # Initial status update
                         await self._get_sub_device_status(cid)
+
                 except Exception as e:  # pylint: disable=broad-except
                     self.warning("Adding subdevice %s failed with exception\n %s", cid, str(e))
 
@@ -501,6 +501,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         if cid == "":  # Not a status update we are interested in
             return
 
+
         self._dispatch_event(GW_EVT_STATUS_UPDATED, status[cid], cid)
 
     @callback
@@ -518,7 +519,7 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
         self._interface = None
         self.debug("Disconnected (TuyaGatewayDevice) - waiting for discovery broadcast")
-        self._connect_task = asyncio.create_task(self._make_connection())
+        # self._connect_task = asyncio.create_task(self._make_connection())
 
 class TuyaSubDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
     """Cache wrapper for a sub-device under a gateway."""
