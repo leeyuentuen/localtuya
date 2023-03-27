@@ -497,7 +497,7 @@ class LocaltuyaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Add a checkbox that allows bailing out from config flow iff at least one
         # entity has been added
         schema = PICK_ENTITY_SCHEMA
-        if self.platform is not None or self.basic_info[CONF_IS_GATEWAY]:
+        if self.platform is not None or (CONF_IS_GATEWAY in self.basic_info and self.basic_info[CONF_IS_GATEWAY]):
             schema = schema.extend(
                 {vol.Required(NO_ADDITIONAL_PLATFORMS, default=True): bool}
             )
