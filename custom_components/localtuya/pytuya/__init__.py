@@ -261,12 +261,24 @@ PAYLOAD_DICT = {
             COMMAND_OVERRIDE: CONTROL_NEW,  # Uses CONTROL_NEW command
             COMMAND: {"protocol": 5, "t": "int", "data": ""},
         },
-        DP_QUERY: {COMMAND_OVERRIDE: DP_QUERY_NEW},
+        DP_QUERY: {
+            COMMAND_OVERRIDE: DP_QUERY_NEW,
+            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "" },
+        },
         DP_QUERY_NEW: {
-            COMMAND: {PARAMETER_CID: ""},
+            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""}
         },
         HEART_BEAT: {
-            COMMAND: {}
+            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""}
+        },
+        CONTROL_NEW: {
+            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}
+        },
+        STATUS: {  # Get Status from Device
+           COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""},
+        },
+        UPDATEDPS: {
+            COMMAND: {PARAMETER_DP_ID: [18, 19, 20]},
         },
     },
 }
