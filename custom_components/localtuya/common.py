@@ -368,7 +368,6 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                         self._dispatch_event(GW_EVT_CONNECTED, None, cid)
                         self.debug('Dispatch Event GW_EVT_CONNECTED %s', cid)
 
-
                         # Initial status update
                         await self._get_sub_device_status(cid)
 
