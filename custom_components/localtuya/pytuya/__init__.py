@@ -690,6 +690,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
     def connection_made(self, transport):
         """Did connect to the device."""
+        self.transport = transport
+        self.on_connected.set_result(True)
+
+    def start_heartbeat(self):
+        """Start the heartbeat transmissions with the device."""
 
         async def heartbeat_loop():
             """Continuously send heart beat updates."""
@@ -712,8 +717,6 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             self.transport = None
             transport.close()
 
-        self.transport = transport
-        self.on_connected.set_result(True)
         self.heartbeater = self.loop.create_task(heartbeat_loop())
 
     def data_received(self, data):
