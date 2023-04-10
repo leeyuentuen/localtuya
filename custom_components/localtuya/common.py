@@ -152,6 +152,11 @@ class TuyaDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
         # This has to be done in case the device type is type_0d
         for entity in config_entry[CONF_ENTITIES]:
             self.dps_to_request[entity[CONF_ID]] = None
+    
+    @property
+    def is_connecting(self):
+        """Return whether device is currently connecting."""
+        return self._connect_task is not None
 
     @property
     def connected(self):
