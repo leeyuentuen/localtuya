@@ -243,13 +243,17 @@ PAYLOAD_DICT = {
     DEV_TYPE_0D: {
          DP_QUERY: {  # Get Data Points from Device
             COMMAND_OVERRIDE: CONTROL_NEW,  # Uses CONTROL_NEW command for some reason
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""},
+            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""},
         },
         DP_QUERY_NEW: {
             COMMAND: {PARAMETER_CID: ""},
         },
         HEART_BEAT: {
             COMMAND: {}
+        },
+        CONTROL: {
+            COMMAND_OVERRIDE: CONTROL_NEW,
+            COMMAND: {PARAMETER_CID: "", "ctype": 0},
         },
         CONTROL_NEW: {
             COMMAND: {PARAMETER_CID: "", "ctype": 0},
@@ -266,7 +270,7 @@ PAYLOAD_DICT = {
             COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "" },
         },
         DP_QUERY_NEW: {
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""}
+            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}
         },
         HEART_BEAT: {
             COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""}
