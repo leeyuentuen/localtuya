@@ -341,7 +341,6 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
                 is_gateway=True,
             )
             self.debug("Connected to gateway %s successfully", self._config_entry[CONF_HOST])
-            self._interface.start_heartbeat()
             
             self.debug("Attempting to reconnect %s subdevices", str(len(self._sub_devices.items())))
             
@@ -376,6 +375,8 @@ class TuyaGatewayDevice(pytuya.TuyaListener, pytuya.ContextualLogger):
 
                 except Exception as e:  # pylint: disable=broad-except
                     self.warning("Adding subdevice %s failed with exception\n %s", cid, str(e))
+                
+            self._interface.start_heartbeat()
 
             self._retry_sub_conn_interval = async_track_time_interval(
                 self._hass,
