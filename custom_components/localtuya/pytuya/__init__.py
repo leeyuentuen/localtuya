@@ -194,98 +194,104 @@ HEARTBEAT_INTERVAL = 10
 # DPS that are known to be safe to use with update_dps (0x12) command
 UPDATE_DPS_WHITELIST = [18, 19, 20]  # Socket (Wi-Fi)
 
-DEV_TYPE_0A = "type_0a"  # DP_QUERY
+DEV_TYPE_0A = "default"  # DP_QUERY
 DEV_TYPE_0D = "type_0d"  # CONTROL_NEW
 
-V34 = "v3.4" # 3.4 protocol
+V34 = "v3.4"  # 3.4 protocol
+V35 = "v3.5"  # 3.5 protocol
 
-#HEXBYTE = "hexByte"
+# HEXBYTE = "hexByte"
 COMMAND = "command"
 COMMAND_OVERRIDE = "command_override"
 
+
+
 # Tuya Device Dictionary - Command and Payload Overrides
-# This is intended to match requests.json payload at
-# https://github.com/codetheweb/tuyapi :
-# 'type_0a' devices require the 0a command for the DP_QUERY request
+#
+# 'default' / 'type_0a' devices require the 0a command for the DP_QUERY request
 # 'type_0d' devices require the 0d command for the DP_QUERY request and a list of
 #            dps used set to Null in the request payload
+#
+# Any command not defined in payload_dict will be sent as-is with a
+#  payload of {"gwId": "", "devId": "", "uid": "", "t": ""}
 
-# prefix: # Next byte is command byte ("hexByte") some zero padding, then length
-# of remaining payload, i.e. command + suffix (unclear if multiple bytes used for
-# length, zero padding implies could be more than one byte)
-PAYLOAD_DICT = {
+payload_dict = {
+    # Default Device
     DEV_TYPE_0A: {
         AP_CONFIG: {  # [BETA] Set Control Values on Device
-            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""},
+            COMMAND: {"gwId": "", "devId": "", "uid": "", "t": ""},
         },
-        CONTROL: {
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""},
-        },
-        CONTROL_NEW: {
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}},
-        DP_QUERY: {
-            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "" },
-        },
-        DP_QUERY_NEW: {
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: ""}
+        CONTROL: {  # Set Control Values on Device
+            COMMAND: {"devId": "", "uid": "", "t": ""},
         },
         STATUS: {  # Get Status from Device
-           COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""},
+            COMMAND: {"gwId": "", "devId": ""},
         },
-        HEART_BEAT: {
-            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""}
-            #COMMAND: {}
+        HEART_BEAT: {COMMAND: {"gwId": "", "devId": ""}},
+        DP_QUERY: {  # Get Data Points from Device
+            COMMAND: {"gwId": "", "devId": "", "uid": "", "t": ""},
         },
-        UPDATEDPS: {
-            COMMAND: {PARAMETER_DP_ID: [18, 19, 20]},
-        },
+        CONTROL_NEW: {COMMAND: {"devId": "", "uid": "", "t": ""}},
+        DP_QUERY_NEW: {COMMAND: {"devId": "", "uid": "", "t": ""}},
+        UPDATEDPS: {COMMAND: {"dpId": [18, 19, 20]}},
+        LAN_EXT_STREAM: {COMMAND: {"reqType": "", "data": {}}},
     },
+    # Special Case Device with 22 character ID - Some of these devices
+    # Require the 0d command as the DP_QUERY status request and the list of
+    # dps requested payload
     DEV_TYPE_0D: {
-         DP_QUERY: {  # Get Data Points from Device
+        DP_QUERY: {  # Get Data Points from Device
             COMMAND_OVERRIDE: CONTROL_NEW,  # Uses CONTROL_NEW command for some reason
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""},
-        },
-        DP_QUERY_NEW: {
-            COMMAND: {PARAMETER_CID: ""},
-        },
-        HEART_BEAT: {
-            COMMAND: {}
-        },
-        CONTROL: {
-            COMMAND_OVERRIDE: CONTROL_NEW,
-            COMMAND: {PARAMETER_CID: "", "ctype": 0},
-        },
-        CONTROL_NEW: {
-            COMMAND: {PARAMETER_CID: "", "ctype": 0},
+            COMMAND: {"devId": "", "uid": "", "t": ""},
         },
     },
-
+    # v3.3+ devices do not need devId/gwId/uid
     V34: {
         CONTROL: {
             COMMAND_OVERRIDE: CONTROL_NEW,  # Uses CONTROL_NEW command
-            COMMAND: {"protocol": 5, "t": "int", "data": ""},
+            COMMAND: {"protocol": 5, "t": "int", "data": {}},
         },
+        CONTROL_NEW: {COMMAND: {"protocol": 5, "t": "int", "data": {}}},
         DP_QUERY: {
             COMMAND_OVERRIDE: DP_QUERY_NEW,
-            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "" },
+            COMMAND: {},  # "protocol":4, "t": "int", "data": {}}
         },
-        DP_QUERY_NEW: {
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}
+        DP_QUERY_NEW: {COMMAND: {}},
+    },
+    # v3.5 is just a copy of v3.4
+    V35: {
+        CONTROL: {
+            COMMAND_OVERRIDE: CONTROL_NEW,  # Uses CONTROL_NEW command
+            COMMAND: {"protocol": 5, "t": "int", "data": {}},
         },
-        HEART_BEAT: {
-            COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""}
+        CONTROL_NEW: {COMMAND: {"protocol": 5, "t": "int", "data": {}}},
+        DP_QUERY: {COMMAND_OVERRIDE: DP_QUERY_NEW, COMMAND: {}},
+        DP_QUERY_NEW: {COMMAND: {}},
+    },
+    # placeholders, not yet needed
+    "gateway": {},
+    "gateway_v3.4": {},
+    "gateway_v3.5": {},
+    "zigbee": {
+        CONTROL: {COMMAND: {"t": "int", "cid": ""}},
+        DP_QUERY: {COMMAND: {"t": "int", "cid": ""}},
+    },
+    "zigbee_v3.4": {
+        CONTROL: {
+            COMMAND_OVERRIDE: CONTROL_NEW,
+            COMMAND: {"protocol": 5, "t": "int", "data": {"cid": ""}},
         },
-        CONTROL_NEW: {
-            COMMAND: {PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}
+        CONTROL_NEW: {COMMAND: {"protocol": 5, "t": "int", "data": {"cid": ""}}},
+    },
+    "zigbee_v3.5": {
+        CONTROL: {
+            COMMAND_OVERRIDE: CONTROL_NEW,
+            COMMAND: {"protocol": 5, "t": "int", "data": {"cid": ""}},
         },
-        STATUS: {  # Get Status from Device
-           COMMAND: {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: ""},
-        },
-        UPDATEDPS: {
-            COMMAND: {PARAMETER_DP_ID: [18, 19, 20]},
-        },
+        CONTROL_NEW: {COMMAND: {"protocol": 5, "t": "int", "data": {"cid": ""}}},
     },
 }
+
 
 class TuyaLoggingAdapter(logging.LoggerAdapter):
     """Adapter that adds device id to all log points."""
@@ -370,7 +376,6 @@ def unpack_message(data, hmac_key=None, header=None, no_retcode=False, logger=No
             len(data),
         )
         raise DecodeError("Not enough data to unpack header")
-
 
     if header is None:
         MESSAGE_RECV_HEADER_FMT, data[:header_len]
@@ -568,7 +573,7 @@ class MessageDispatcher(ContextualLogger):
             if self.SESS_KEY_SEQNO in self.listeners:
                 sem = self.listeners[self.SESS_KEY_SEQNO]
                 self.listeners[self.SESS_KEY_SEQNO] = msg
-                if hasattr(sem, 'release'):
+                if hasattr(sem, "release"):
                     sem.release()
         elif msg.cmd == STATUS:
             if self.RESET_SEQNO in self.listeners:
@@ -664,17 +669,22 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         self.sub_devices = []
         self.local_nonce = b"0123456789abcdef"  # not-so-random random key
         self.remote_nonce = b""
+        self.payload_dict = None
 
     def set_version(self, protocol_version):
         """Set the device version and eventually start available DPs detection."""
         self.version = protocol_version
+        self.version_str = "v" + str(protocol_version)
         self.version_bytes = str(protocol_version).encode("latin1")
         self.version_header = self.version_bytes + PROTOCOL_3x_HEADER
+        self.payload_dict = None
         if protocol_version == 3.2:  # 3.2 behaves like 3.3 with type_0d
             # self.version = 3.3
-            self.dev_type = "type_0d"
+            self.dev_type = DEV_TYPE_0D
         elif protocol_version == 3.4:
-            self.dev_type = "v3.4"
+            self.dev_type = V34
+        elif protocol_version == 3.5:
+            self.dev_type = V35
 
     def error_json(self, number=None, payload=None):
         """Return error details in JSON."""
@@ -691,12 +701,14 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
     def _setup_dispatcher(self):
         """Sets up message dispatcher for this pytuya instance"""
-        return MessageDispatcher(self.id, self._status_update, self.version, self.local_key)
+        return MessageDispatcher(
+            self.id, self._status_update, self.version, self.local_key
+        )
 
     def _status_update(self, msg):
         """Handle status updates"""
         if msg.seqno > 0:
-                self.seqno = msg.seqno + 1
+            self.seqno = msg.seqno + 1
         decoded_message = self._decode_payload(msg.payload)
         self._update_dps_cache(decoded_message)
 
@@ -836,14 +848,13 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
 
         enc_payload = self._encode_message(payload)
         self.debug("Dispatching sequence number %d", seqno)
-        self.debug('payload %s - %s', enc_payload, payload)
+        self.debug("payload %s - %s", enc_payload, payload)
         self.transport.write(enc_payload)
         msg = await self.dispatcher.wait_for(seqno, payload.cmd)
 
         if msg is None:
             self.debug("Wait was aborted for seqno %d", seqno)
             return None
-
 
         # TODO: Verify stuff, e.g. CRC sequence number?
         if real_cmd in [HEART_BEAT, CONTROL, CONTROL_NEW] and len(msg.payload) == 0:
@@ -879,10 +890,10 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         if self.is_gateway:
             if not cid:
                 return
-                #raise Exception("Sub-device cid not specified for gateway")
+                # raise Exception("Sub-device cid not specified for gateway")
             if cid not in self.sub_devices:
                 return
-                #raise Exception("Unexpected sub-device cid", cid)
+                # raise Exception("Unexpected sub-device cid", cid)
 
             # status = await self.exchange(DP_QUERY_NEW, cid=cid)
             status = await self.exchange(DP_QUERY_NEW, cid=cid)
@@ -908,7 +919,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         Args:
             dps([int]): list of dps to update, default=detected&whitelisted
         """
-        if self.version in [3.2, 3.3]: # 3.2 behaves like 3.3 with type_0d
+        if self.version in [3.2, 3.3]:  # 3.2 behaves like 3.3 with type_0d
             if dps is None:
                 if not self.dps_cache:
                     await self.detect_available_dps()
@@ -1072,11 +1083,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             if payload.startswith(self.version_bytes):
                 payload = payload[len(self.version_header) :]
                 # self.debug("removing 3.x=%r", payload)
-            elif self.dev_type == "type_0d" and (len(payload) & 0x0F) != 0:
+            elif self.dev_type == DEV_TYPE_0D and (len(payload) & 0x0F) != 0:
                 payload = payload[len(self.version_header) :]
                 # self.debug("removing type_0d 3.x header=%r", payload)
 
-            if self.version != 3.4:
+            if self.version < 3.4:
                 try:
                     # self.debug("decrypting=%r", payload)
                     payload = cipher.decrypt(payload, False)
@@ -1231,7 +1242,9 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
         # self.debug("payload encrypted with key %r => %r", self.local_key, binascii.hexlify(buffer))
         return buffer
 
-    def _generate_payload(self, command, data=None, cid=None, gwId=None, devId=None, uid=None):
+    def _generate_payload(
+        self, command, data=None, cid=None, gwId=None, devId=None, uid=None
+    ):
         """
         Generate the payload to send.
         Args:
@@ -1245,47 +1258,91 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             uid(str, optional): Will be used for uid
         """
 
-        if self.is_gateway:
-            if command != HEART_BEAT:
-                if not cid:
-                    raise Exception("Sub-device cid not specified for gateway")
-                if cid not in self.sub_devices:
-                    raise Exception("Unexpected sub-device cid", cid)
+        def _deepcopy(dict1):
+            result = {}
+            for k in dict1:
+                if isinstance(dict1[k], dict):
+                    result[k] = _deepcopy(dict1[k])
+                else:
+                    result[k] = dict1[k]
+            return result
 
-        payload_dict = PAYLOAD_DICT
+        # dict2 will be merged into dict1
+        # as dict2 is payload_dict['...'] we only need to worry about copying 2 levels deep,
+        #  the command id and COMMAND/COMMAND_OVERRIDE keys: i.e. dict2[CMD_ID][COMMAND]
+        def _merge_payload_dicts(dict1, dict2):
+            for cmd in dict2:
+                if cmd not in dict1:
+                    # make a deep copy so we don't get a reference
+                    dict1[cmd] = _deepcopy(dict2[cmd])
+                else:
+                    for var in dict2[cmd]:
+                        if not isinstance(dict2[cmd][var], dict):
+                            # not a dict, safe to copy
+                            dict1[cmd][var] = dict2[cmd][var]
+                        else:
+                            # make a deep copy so we don't get a reference
+                            dict1[cmd][var] = _deepcopy(dict2[cmd][var])
+
+        # start merging down to the final payload dict
+        # later merges overwrite earlier merges
+        # "default" - ("gateway" if gateway) - ("zigbee" if sub-device) - [version string] - ('gateway_'+[version string] if gateway) -
+        #   'zigbee_'+[version string] if sub-device - [dev_type if not "default"]
+        if not self.payload_dict or self.last_dev_type != self.dev_type:
+            self.payload_dict = {}
+            _merge_payload_dicts(self.payload_dict, payload_dict["default"])
+            if self.sub_devices:
+                _merge_payload_dicts(self.payload_dict, payload_dict["gateway"])
+            if cid is not None:
+                _merge_payload_dicts(self.payload_dict, payload_dict["zigbee"])
+            if self.version_str in payload_dict:
+                _merge_payload_dicts(self.payload_dict, payload_dict[self.version_str])
+            if self.sub_devices and ("gateway_" + self.version_str) in payload_dict:
+                _merge_payload_dicts(
+                    self.payload_dict, payload_dict["gateway_" + self.version_str]
+                )
+            if cid is not None and ("zigbee_" + self.version_str) in payload_dict:
+                _merge_payload_dicts(
+                    self.payload_dict, payload_dict["zigbee_" + self.version_str]
+                )
+            if self.dev_type != "default":
+                _merge_payload_dicts(self.payload_dict, payload_dict[self.dev_type])
+            self.debug(
+                "final payload_dict for %r (%r/%r): %r",
+                self.id,
+                self.version_str,
+                self.dev_type,
+                self.payload_dict,
+            )
+            # save it so we don't have to calculate this again unless something changes
+            self.last_dev_type = self.dev_type
 
         json_data = command_override = None
-        if self.dev_type in payload_dict and command in payload_dict[self.dev_type]:
-            if COMMAND in payload_dict[self.dev_type][command]:
-                json_data = payload_dict[self.dev_type][command][COMMAND]
-            if COMMAND_OVERRIDE in payload_dict[self.dev_type][command]:
-                command_override = payload_dict[self.dev_type][command][
-                    COMMAND_OVERRIDE
-                ]
 
-        if self.dev_type != DEV_TYPE_0A:
-            if (
-                json_data is None
-                and self.dev_type in payload_dict
-                and command in payload_dict[self.dev_type]
-                and COMMAND in payload_dict[self.dev_type][command]
-            ):
-                json_data = payload_dict[self.dev_type][command][COMMAND]
-            if (
-                command_override is None
-                and self.dev_type in payload_dict
-                and command in payload_dict[self.dev_type]
-                and COMMAND_OVERRIDE in payload_dict[self.dev_type][command]
-            ):
-                command_override = payload_dict[self.dev_type][command][COMMAND_OVERRIDE]
+        if command in self.payload_dict:
+            if COMMAND in self.payload_dict[command]:
+                json_data = self.payload_dict[command][COMMAND]
+            if COMMAND_OVERRIDE in self.payload_dict[command]:
+                command_override = self.payload_dict[command][COMMAND_OVERRIDE]
 
         if command_override is None:
             command_override = command
         if json_data is None:
-            self._logger.info("Unknown dev_type %r, command %r, Load default json_data format", self.dev_type, command)
-            json_data = {PARAMETER_GW_ID: "", PARAMETER_DEV_ID: "", PARAMETER_UID: "", PARAMETER_T: "", PARAMETER_CID: ""}
+            self._logger.info(
+                "Unknown dev_type %r, command %r, Load default json_data format",
+                self.dev_type,
+                command,
+            )
+            json_data = {
+                PARAMETER_GW_ID: "",
+                PARAMETER_DEV_ID: "",
+                PARAMETER_UID: "",
+                PARAMETER_T: "",
+                PARAMETER_CID: "",
+            }
 
-
+        # make sure we don't modify payload_dict
+        json_data = json_data.copy()
 
         if PARAMETER_GW_ID in json_data:
             if gwId is not None:
@@ -1302,11 +1359,12 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 json_data[PARAMETER_UID] = uid
             else:
                 json_data[PARAMETER_UID] = self.id
-        if PARAMETER_CID in json_data:
+        if cid is not None:
             # for Zigbee gateways, cid specifies the sub-device
-             if cid is not None:
-                json_data[PARAMETER_CID] = cid
-            #todo else
+            json_data[PARAMETER_CID] = cid
+            if PARAMETER_DATA in json_data:
+                json_data[PARAMETER_DATA][PARAMETER_DATA] = cid
+                json_data[PARAMETER_DATA]["ctype"] = 0
         if PARAMETER_T in json_data:
             if json_data[PARAMETER_T] == "int":
                 json_data[PARAMETER_T] = int(time.time())
