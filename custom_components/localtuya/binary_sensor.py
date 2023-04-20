@@ -55,8 +55,6 @@ class LocaltuyaBinarySensor(LocalTuyaEntity, BinarySensorEntity):
         """Device status was updated."""
         super().status_updated()
         state = str(self.dps(self._dp_id)).lower()
-        if state == 'none':
-            return
         if state == self._config[CONF_STATE_ON].lower():
             self._is_on = True
         elif state == self._config[CONF_STATE_OFF].lower():
