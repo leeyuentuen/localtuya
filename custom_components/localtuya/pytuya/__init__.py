@@ -1376,6 +1376,8 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
                 json_data[PARAMETER_DP_ID] = data
             elif PARAMETER_DATA in json_data:
                 json_data[PARAMETER_DATA] = {PROPERTY_DPS: data}
+                if cid is not None:
+                    json_data[PARAMETER_DATA][PARAMETER_CID] = cid
             else:
                 json_data[PROPERTY_DPS] = data
         elif command == CONTROL_NEW:
