@@ -205,7 +205,6 @@ COMMAND = "command"
 COMMAND_OVERRIDE = "command_override"
 
 
-
 # Tuya Device Dictionary - Command and Payload Overrides
 #
 # 'default' / 'type_0a' devices require the 0a command for the DP_QUERY request
@@ -423,6 +422,7 @@ def unpack_message(data, hmac_key=None, header=None, no_retcode=False, logger=No
     return TuyaMessage(
         header.seqno, header.cmd, retcode, payload[:-end_len], crc, crc == have_crc
     )
+
 
 def parse_header(data):
     """Unpack bytes into a TuyaHeader."""
@@ -1363,8 +1363,13 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             # for Zigbee gateways, cid specifies the sub-device
             json_data[PARAMETER_CID] = cid
             if PARAMETER_DATA in json_data:
-                json_data[PARAMETER_DATA][PARAMETER_DATA] = cid
+                json_data[PARAMETER_DATA][PARAMETER_CID] = cid
                 json_data[PARAMETER_DATA]["ctype"] = 0
+            # remove all ids except cid for subdevices (needs better fix to payload def)
+            if command == CONTROL:
+                for k in ["gwId", "devId", "uid"]:
+                    if k in json_data:
+                        json_data.pop(k)
         if PARAMETER_T in json_data:
             if json_data[PARAMETER_T] == "int":
                 json_data[PARAMETER_T] = int(time.time())
@@ -1375,9 +1380,7 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             if PARAMETER_DP_ID in json_data:
                 json_data[PARAMETER_DP_ID] = data
             elif PARAMETER_DATA in json_data:
-                json_data[PARAMETER_DATA] = {PROPERTY_DPS: data}
-                if cid is not None:
-                    json_data[PARAMETER_DATA][PARAMETER_CID] = cid
+                json_data[PARAMETER_DATA][PROPERTY_DPS] = data
             else:
                 json_data[PROPERTY_DPS] = data
         elif command == CONTROL_NEW:
