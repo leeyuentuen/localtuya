@@ -1365,6 +1365,11 @@ class TuyaProtocol(asyncio.Protocol, ContextualLogger):
             if PARAMETER_DATA in json_data:
                 json_data[PARAMETER_DATA][PARAMETER_CID] = cid
                 json_data[PARAMETER_DATA]["ctype"] = 0
+            # remove all ids except cid for subdevices (needs better fix to payload def)
+            if command == CONTROL:
+                for k in ["gwId", "devId", "uid"]:
+                    if k in json_data:
+                        json_data.pop(k)
         if PARAMETER_T in json_data:
             if json_data[PARAMETER_T] == "int":
                 json_data[PARAMETER_T] = int(time.time())
