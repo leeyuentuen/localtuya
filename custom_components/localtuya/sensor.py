@@ -1,9 +1,11 @@
 """Platform to present any Tuya DP as a sensor."""
-import logging
+
 from functools import partial
+import logging
 
 import voluptuous as vol
-from homeassistant.components.sensor import DEVICE_CLASSES, DOMAIN
+
+from homeassistant.components.sensor import DEVICE_CLASSES, DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import (
     CONF_DEVICE_CLASS,
     CONF_UNIT_OF_MEASUREMENT,
@@ -76,4 +78,6 @@ class LocaltuyaSensor(LocalTuyaEntity):
         return
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaSensor, flow_schema)
+async_setup_entry = partial(
+    async_setup_entry, SENSOR_DOMAIN, LocaltuyaSensor, flow_schema
+)

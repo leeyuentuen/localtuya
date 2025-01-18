@@ -1,9 +1,11 @@
 """Platform to locally control Tuya-based switch devices."""
-import logging
+
 from functools import partial
+import logging
 
 import voluptuous as vol
-from homeassistant.components.switch import DOMAIN, SwitchEntity
+
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN, SwitchEntity
 
 from .common import LocalTuyaEntity, async_setup_entry
 from .const import (
@@ -95,4 +97,6 @@ class LocaltuyaSwitch(LocalTuyaEntity, SwitchEntity):
         return False
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaSwitch, flow_schema)
+async_setup_entry = partial(
+    async_setup_entry, SWITCH_DOMAIN, LocaltuyaSwitch, flow_schema
+)

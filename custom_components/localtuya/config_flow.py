@@ -1,10 +1,11 @@
 """Config flow for LocalTuya integration integration."""
-import errno
-import logging
-from importlib import import_module
 
-import homeassistant.helpers.config_validation as cv
+import errno
+from importlib import import_module
+import logging
+
 import voluptuous as vol
+
 from homeassistant import config_entries, core, exceptions
 from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import (
@@ -18,23 +19,23 @@ from homeassistant.const import (
     CONF_SCAN_INTERVAL,
 )
 from homeassistant.core import callback
+import homeassistant.helpers.config_validation as cv
 
 from .common import async_config_entry_by_device_id, pytuya
-
 from .const import (
+    CONF_DPS_STRINGS,
+    CONF_IS_GATEWAY,
     CONF_LOCAL_KEY,
+    CONF_PARENT_GATEWAY,
     CONF_PRODUCT_KEY,
     CONF_PROTOCOL_VERSION,
-    CONF_IS_GATEWAY,
-    CONF_PARENT_GATEWAY,
     DATA_DISCOVERY,
     DOMAIN,
-    PLATFORMS,
-    CONF_DPS_STRINGS,
     PARAMETER_GW_ID,
     PARAMETER_IP,
     PARAMETER_PRODUCT_KEY,
     PARAMETER_VERSION,
+    PLATFORMS,
 )
 from .discovery import discover
 
@@ -99,7 +100,7 @@ def user_schema(devices, entries):
     return vol.Schema(
         {
             vol.Required(DISCOVERED_DEVICE): vol.In(
-                device_list + [CUSTOM_DEVICE, CUSTOM_SUB_DEVICE]
+                [*device_list, CUSTOM_DEVICE, CUSTOM_SUB_DEVICE]
             )
         }
     )
@@ -223,7 +224,7 @@ def strip_dps_values(user_input, dps_strings):
 
 
 def validate_config_schema(config):
-    """Valid configuration schema to ensure proper values have been declared"""
+    """Valid configuration schema to ensure proper values have been declared."""
     for device in config:
         if device.get(CONF_PARENT_GATEWAY):
             if device.get(CONF_IS_GATEWAY):
@@ -318,7 +319,7 @@ class LocaltuyaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get options flow for this handler."""
         return LocalTuyaOptionsFlowHandler(config_entry)
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize a new LocaltuyaConfigFlow."""
         self.basic_info = None
         self.dps_strings = []
@@ -497,7 +498,9 @@ class LocaltuyaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Add a checkbox that allows bailing out from config flow iff at least one
         # entity has been added
         schema = PICK_ENTITY_SCHEMA
-        if self.platform is not None or (CONF_IS_GATEWAY in self.basic_info and self.basic_info[CONF_IS_GATEWAY]):
+        if self.platform is not None or (
+            CONF_IS_GATEWAY in self.basic_info and self.basic_info[CONF_IS_GATEWAY]
+        ):
             schema = schema.extend(
                 {vol.Required(NO_ADDITIONAL_PLATFORMS, default=True): bool}
             )
@@ -527,18 +530,17 @@ class LocaltuyaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_add_dp(self, user_input=None):
-        """Handle adding a new data point"""
+        """Handle adding a new data point."""
         errors = {}
         if user_input is not None:
             if user_input.get(FLOW_DP) == 0:
                 if self.basic_info.get(CONF_PARENT_GATEWAY):
                     return await self.async_step_basic_sub_device_info(FLOW_DP)
                 return await self.async_step_basic_info(FLOW_DP)
-            else:
-                dp_str = str(user_input[FLOW_DP]) + " (value: Custom)"
-                if dp_str not in self.dps_strings:
-                    self.dps_strings.append(dp_str)
-                return await self.async_step_add_dp()
+            dp_str = str(user_input[FLOW_DP]) + " (value: Custom)"
+            if dp_str not in self.dps_strings:
+                self.dps_strings.append(dp_str)
+            return await self.async_step_add_dp()
 
         return self.async_show_form(
             step_id="add_dp",
@@ -558,7 +560,7 @@ class LocaltuyaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for LocalTuya integration."""
 
-    def __init__(self, config_entry):
+    def __init__(self, config_entry) -> None:
         """Initialize localtuya options flow."""
         self.config_entry = config_entry
         self.dps_strings = config_entry.data.get(CONF_DPS_STRINGS, gen_dps_strings())
@@ -588,11 +590,11 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
                 )
                 return self.async_create_entry(title="", data={})
             if self.parent_gateway:
-                 self.data.update(
+                self.data.update(
                     {
-                         CONF_PARENT_GATEWAY: self.parent_gateway,
+                        CONF_PARENT_GATEWAY: self.parent_gateway,
                     }
-                 )
+                )
             self.data.update(
                 {
                     CONF_ENTITIES: [],
@@ -622,7 +624,7 @@ class LocalTuyaOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
                 description_placeholders={CONF_DEVICE_ID: device_id},
             )
-        
+
         return self.async_show_form(
             step_id="init",
             data_schema=schema_defaults(

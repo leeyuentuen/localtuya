@@ -1,17 +1,19 @@
 """Platform to locally control Tuya-based fan devices."""
+
+from functools import partial
 import logging
 import math
-from functools import partial
 
-import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+
 from homeassistant.components.fan import (
     DIRECTION_FORWARD,
     DIRECTION_REVERSE,
-    DOMAIN,
+    DOMAIN as FAN_DOMAIN,
     FanEntity,
     FanEntityFeature,
 )
+import homeassistant.helpers.config_validation as cv
 from homeassistant.util.percentage import (
     int_states_in_range,
     ordered_list_item_to_percentage,
@@ -161,6 +163,8 @@ class LocaltuyaFan(LocalTuyaEntity, FanEntity):
                     percentage_to_ranged_value(self._speed_range, percentage),
                 )
             self.schedule_update_ha_state()
+            return None
+        return None
 
     async def async_oscillate(self, oscillating: bool) -> None:
         """Set oscillation."""
@@ -249,4 +253,4 @@ class LocaltuyaFan(LocalTuyaEntity, FanEntity):
             _LOGGER.debug("Fan current_direction : %s > %s", value, self._direction)
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaFan, flow_schema)
+async_setup_entry = partial(async_setup_entry, FAN_DOMAIN, LocaltuyaFan, flow_schema)

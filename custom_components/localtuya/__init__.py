@@ -70,13 +70,13 @@ localtuya:
         clean_time_dp: 33
         clean_area_dp: 32
 """
-import asyncio
-import logging
-from datetime import timedelta
 
-import homeassistant.helpers.config_validation as cv
-import homeassistant.helpers.entity_registry as er
+import asyncio
+from datetime import timedelta
+import logging
+
 import voluptuous as vol
+
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import (
     CONF_DEVICE_ID,
@@ -89,6 +89,8 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+import homeassistant.helpers.config_validation as cv
+import homeassistant.helpers.entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.reload import async_integration_yaml_config
 
@@ -101,9 +103,9 @@ from .common import (
 from .config_flow import config_schema
 from .const import (
     CONF_DP,
-    CONF_PRODUCT_KEY,
     CONF_IS_GATEWAY,
     CONF_PARENT_GATEWAY,
+    CONF_PRODUCT_KEY,
     CONF_VALUE,
     DATA_DISCOVERY,
     DOMAIN,

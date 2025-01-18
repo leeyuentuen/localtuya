@@ -1,11 +1,13 @@
 """Platform to present any Tuya DP as a binary sensor."""
-import logging
+
 from functools import partial
+import logging
 
 import voluptuous as vol
+
 from homeassistant.components.binary_sensor import (
     DEVICE_CLASSES_SCHEMA,
-    DOMAIN,
+    DOMAIN as BINARY_SENSOR_DOMAIN,
     BinarySensorEntity,
 )
 from homeassistant.const import CONF_DEVICE_CLASS
@@ -71,5 +73,5 @@ class LocaltuyaBinarySensor(LocalTuyaEntity, BinarySensorEntity):
 
 
 async_setup_entry = partial(
-    async_setup_entry, DOMAIN, LocaltuyaBinarySensor, flow_schema
+    async_setup_entry, BINARY_SENSOR_DOMAIN, LocaltuyaBinarySensor, flow_schema
 )

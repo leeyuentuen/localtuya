@@ -1,20 +1,15 @@
 """Platform to present any Tuya DP as a number."""
-import logging
+
 from functools import partial
+import logging
 
 import voluptuous as vol
-from homeassistant.components.number import DOMAIN, NumberEntity
+
+from homeassistant.components.number import DOMAIN as NUMBER_DOMAIN, NumberEntity
 from homeassistant.const import CONF_DEVICE_CLASS, STATE_UNKNOWN
 
 from .common import LocalTuyaEntity, async_setup_entry
-
-from .const import (
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_DEFAULT_VALUE,
-    CONF_RESTORE_ON_RECONNECT,
-    CONF_STEPSIZE_VALUE,
-)
+from .const import CONF_DEFAULT_VALUE, CONF_RESTORE_ON_RECONNECT, CONF_STEPSIZE_VALUE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,4 +112,6 @@ class LocaltuyaNumber(LocalTuyaEntity, NumberEntity):
         return self._min_value
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaNumber, flow_schema)
+async_setup_entry = partial(
+    async_setup_entry, NUMBER_DOMAIN, LocaltuyaNumber, flow_schema
+)

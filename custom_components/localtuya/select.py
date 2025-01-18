@@ -1,19 +1,15 @@
 """Platform to present any Tuya DP as an enumeration."""
-import logging
+
 from functools import partial
+import logging
 
 import voluptuous as vol
-from homeassistant.components.select import DOMAIN, SelectEntity
+
+from homeassistant.components.select import DOMAIN as SELECT_DOMAIN, SelectEntity
 from homeassistant.const import CONF_DEVICE_CLASS, STATE_UNKNOWN
 
 from .common import LocalTuyaEntity, async_setup_entry
-from .const import (
-    CONF_OPTIONS,
-    CONF_OPTIONS_FRIENDLY,
-    CONF_DEFAULT_VALUE,
-    CONF_RESTORE_ON_RECONNECT,
-    CONF_PASSIVE_ENTITY,
-)
+from .const import CONF_DEFAULT_VALUE, CONF_RESTORE_ON_RECONNECT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -121,4 +117,6 @@ class LocaltuyaSelect(LocalTuyaEntity, SelectEntity):
         return self._valid_options[0]
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaSelect, flow_schema)
+async_setup_entry = partial(
+    async_setup_entry, SELECT_DOMAIN, LocaltuyaSelect, flow_schema
+)

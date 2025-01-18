@@ -1,17 +1,14 @@
 """Platform to locally control Tuya-based vacuum devices."""
-import logging
+
 from functools import partial
+import logging
 
 import voluptuous as vol
+
 from homeassistant.components.vacuum import (
-    DOMAIN,
-    STATE_CLEANING,
-    STATE_DOCKED,
-    STATE_ERROR,
-    STATE_IDLE,
-    STATE_PAUSED,
-    STATE_RETURNING,
+    DOMAIN as VACUUM_DOMAIN,
     StateVacuumEntity,
+    VacuumActivity,
     VacuumEntityFeature,
 )
 
@@ -212,15 +209,15 @@ class LocaltuyaVacuum(LocalTuyaEntity, StateVacuumEntity):
         state_value = str(self.dps(self._dp_id))
 
         if state_value in self._idle_status_list:
-            self._state = STATE_IDLE
+            self._state = VacuumActivity.IDLE
         elif state_value in self._docked_status_list:
-            self._state = STATE_DOCKED
+            self._state = VacuumActivity.DOCKED
         elif state_value == self._config[CONF_RETURNING_STATUS_VALUE]:
-            self._state = STATE_RETURNING
+            self._state = VacuumActivity.RETURNING
         elif state_value == self._config[CONF_PAUSED_STATE]:
-            self._state = STATE_PAUSED
+            self._state = VacuumActivity.PAUSED
         else:
-            self._state = STATE_CLEANING
+            self._state = VacuumActivity.CLEANING
 
         if self.has_config(CONF_BATTERY_DP):
             self._battery_level = self.dps_conf(CONF_BATTERY_DP)
@@ -246,7 +243,9 @@ class LocaltuyaVacuum(LocalTuyaEntity, StateVacuumEntity):
         if self.has_config(CONF_FAULT_DP):
             self._attrs[FAULT] = self.dps_conf(CONF_FAULT_DP)
             if self._attrs[FAULT] != 0:
-                self._state = STATE_ERROR
+                self._state = VacuumActivity.ERROR
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaVacuum, flow_schema)
+async_setup_entry = partial(
+    async_setup_entry, VACUUM_DOMAIN, LocaltuyaVacuum, flow_schema
+)

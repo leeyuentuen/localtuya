@@ -1,13 +1,15 @@
 """Platform to locally control Tuya-based climate devices."""
+
 import asyncio
-import logging
 from functools import partial
+import logging
 
 import voluptuous as vol
+
 from homeassistant.components.climate import (
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_TEMP,
-    DOMAIN,
+    DOMAIN as CLIMATE_DOMAIN,
     PRESET_AWAY,
     PRESET_ECO,
     PRESET_HOME,
@@ -17,16 +19,13 @@ from homeassistant.components.climate import (
     HVACAction,
     HVACMode,
 )
-
-
 from homeassistant.const import (
     ATTR_TEMPERATURE,
     CONF_TEMPERATURE_UNIT,
     PRECISION_HALVES,
     PRECISION_TENTHS,
     PRECISION_WHOLE,
-    TEMP_CELSIUS,
-    TEMP_FAHRENHEIT,
+    UnitOfTemperature,
 )
 
 from .common import LocalTuyaEntity, async_setup_entry
@@ -160,13 +159,7 @@ def flow_schema(dps):
 class LocaltuyaClimate(LocalTuyaEntity, ClimateEntity):
     """Tuya climate device."""
 
-    def __init__(
-        self,
-        device,
-        config_entry,
-        switchid,
-        **kwargs,
-    ):
+    def __init__(self, device, config_entry, switchid, **kwargs) -> None:
         """Initialize a new LocaltuyaClimate."""
         super().__init__(device, config_entry, switchid, _LOGGER, **kwargs)
         self._state = None
@@ -229,8 +222,8 @@ class LocaltuyaClimate(LocalTuyaEntity, ClimateEntity):
             self._config.get(CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT)
             == TEMPERATURE_FAHRENHEIT
         ):
-            return TEMP_FAHRENHEIT
-        return TEMP_CELSIUS
+            return UnitOfTemperature.TEMP_FAHRENHEIT
+        return UnitOfTemperature.TEMP_CELSIUS
 
     @property
     def hvac_mode(self):
@@ -242,7 +235,7 @@ class LocaltuyaClimate(LocalTuyaEntity, ClimateEntity):
         """Return the list of available operation modes."""
         if not self.has_config(CONF_HVAC_MODE_DP):
             return None
-        return list(self._conf_hvac_mode_set) + [HVACMode.OFF]
+        return [*list(self._conf_hvac_mode_set), HVACMode.OFF]
 
     @property
     def hvac_action(self):
@@ -420,4 +413,6 @@ class LocaltuyaClimate(LocalTuyaEntity, ClimateEntity):
                 self._hvac_action = action
 
 
-async_setup_entry = partial(async_setup_entry, DOMAIN, LocaltuyaClimate, flow_schema)
+async_setup_entry = partial(
+    async_setup_entry, CLIMATE_DOMAIN, LocaltuyaClimate, flow_schema
+)

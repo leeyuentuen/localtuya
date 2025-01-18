@@ -4,17 +4,16 @@ Entirely based on tuya-convert.py from tuya-convert:
 
 https://github.com/ct-Open-Source/tuya-convert/blob/master/scripts/tuya-discovery.py
 """
+
 import asyncio
+from hashlib import md5
 import json
 import logging
-from hashlib import md5
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from .const import (
-    PARAMETER_GW_ID,
-)
+from .const import PARAMETER_GW_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ def decrypt_udp(message):
 class TuyaDiscovery(asyncio.DatagramProtocol):
     """Datagram handler listening for Tuya broadcast messages."""
 
-    def __init__(self, callback=None):
+    def __init__(self, callback=None) -> None:
         """Initialize a new BaseDiscovery."""
         self.devices = {}
         self._listeners = []
