@@ -271,7 +271,7 @@ class LocaltuyaLight(LocalTuyaEntity, LightEntity):
         if self.has_config(CONF_COLOR_TEMP):
             supports |= ColorMode.COLOR_TEMP
         if self.has_config(CONF_COLOR):
-            supports |= ColorMode.HS | ColorMode.BRIGHTNESS
+            supports |= ColorMode.HS or ColorMode.BRIGHTNESS
         if self.has_config(CONF_SCENE) or self.has_config(CONF_MUSIC_MODE):
             supports |= LightEntityFeature.EFFECT
         return supports
