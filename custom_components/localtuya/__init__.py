@@ -93,6 +93,7 @@ import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.reload import async_integration_yaml_config
+from homeassistant.helpers.service import async_register_admin_service
 
 from .common import (
     TuyaDevice,
@@ -256,14 +257,15 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
     async_track_time_interval(hass, _async_reconnect, RECONNECT_INTERVAL)
 
-    hass.helpers.service.async_register_admin_service(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_RELOAD,
         _handle_reload,
     )
 
-    hass.helpers.service.async_register_admin_service(
-        DOMAIN, SERVICE_SET_DP, _handle_set_dp, schema=SERVICE_SET_DP_SCHEMA
+    async_register_admin_service(
+        hass, DOMAIN, SERVICE_SET_DP, _handle_set_dp, schema=SERVICE_SET_DP_SCHEMA
     )
 
     for host_config in config.get(DOMAIN, []):
@@ -292,23 +294,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         TUYA_DEVICE: device,
     }
 
-    if not entry.data.get(CONF_IS_GATEWAY):
+    await setup_entities(hass, entry, device)
 
-        async def setup_entities():
-            platforms = set(
-                entity[CONF_PLATFORM] for entity in entry.data[CONF_ENTITIES]
-            )
-            await asyncio.gather(
-                *[
-                    hass.config_entries.async_forward_entry_setup(entry, platform)
-                    for platform in platforms
-                ]
-            )
-            device.async_connect()
-
-        await async_remove_orphan_entities(hass, entry)
-        hass.async_create_task(setup_entities())
     return True
+
+
+async def setup_entities(hass: HomeAssistant, entry: ConfigEntry, device: TuyaDevice):
+    """Set up entities for the config entry."""
+    if not entry.data.get(CONF_IS_GATEWAY):
+        platforms = {entity[CONF_PLATFORM] for entity in entry.data[CONF_ENTITIES]}
+        await hass.config_entries.async_forward_entry_setups(entry, platforms)
+        device.async_connect()
+    await async_remove_orphan_entities(hass, entry)
+    hass.async_create_task(setup_entities())
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -318,9 +316,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             await asyncio.gather(
                 *[
                     hass.config_entries.async_forward_entry_unload(entry, component)
-                    for component in set(
+                    for component in {
                         entity[CONF_PLATFORM] for entity in entry.data[CONF_ENTITIES]
-                    )
+                    }
                 ]
             )
         )
