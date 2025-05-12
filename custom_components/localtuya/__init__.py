@@ -306,7 +306,7 @@ async def setup_entities(hass: HomeAssistant, entry: ConfigEntry, device: TuyaDe
         await hass.config_entries.async_forward_entry_setups(entry, platforms)
         device.async_connect()
     await async_remove_orphan_entities(hass, entry)
-    hass.async_create_task(setup_entities())
+    hass.async_create_task(setup_entities(hass, entry, device))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
